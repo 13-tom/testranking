@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/update_claude_md_on_feature.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
