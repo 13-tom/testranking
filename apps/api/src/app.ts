@@ -3,7 +3,8 @@ import cors from "cors";
 import { env } from "./config/env.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { healthRouter } from "./features/health/health.routes.js";
+import { healthRouter } from "./routes/health.routes.js";
+import { authRouter } from "./routes/auth.routes.js";
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,7 @@ export function createApp() {
   app.use(requestLogger);
 
   app.use("/api/v1/health", healthRouter);
+  app.use("/api/v1/auth", authRouter);
 
   app.use(errorHandler);
 

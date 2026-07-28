@@ -7,7 +7,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
     const body: ApiResponse<never> = {
       success: false,
-      error: { message: err.message, code: err.code },
+      message: err.message,
+      errors: err.details ?? [],
     };
     res.status(err.statusCode).json(body);
     return;
@@ -16,7 +17,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   logger.error({ err }, "Unhandled error");
   const body: ApiResponse<never> = {
     success: false,
-    error: { message: "Internal server error", code: "INTERNAL_ERROR" },
+    message: "Internal server error",
+    errors: [],
   };
   res.status(500).json(body);
 };

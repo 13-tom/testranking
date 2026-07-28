@@ -960,6 +960,52 @@ Approved
 
 ---
 
+## BR-037
+
+**Category**
+
+Product / Architecture — Authentication (Release 1 build)
+
+**Decision**
+
+**Release 1 student authentication is email + password, not Mobile Number + OTP.** This overrides BR-002 and PRD Chapter 8's Decision 002 for the current build phase.
+
+**Why**
+
+The product owner explicitly requested email + password as the primary login method for this build, with OTP/Mobile login deferred to a later phase rather than built now. Standard password auth avoids requiring a paid SMS provider account (e.g. MSG91) before the platform can be used and tested end-to-end.
+
+**Implementation notes**
+
+* `User.passwordHash` is used (bcrypt), reversing BR-002's "no passwords in MVP" for the student flow. Admin auth already used password auth separately, so this brings student auth in line with that pattern rather than introducing a wholly new mechanism.
+* `User.phone` is kept as an optional, nullable, unique-when-present column now, so Mobile+OTP can be added in a later phase without a schema migration rework.
+* All other Release 1 auth requirements from PRD Chapter 8 still apply where they don't conflict: JWT-based sessions, backend-only authorization, protected route lists, rate limiting on auth endpoints.
+
+**Status**
+
+Approved
+
+---
+
+## BR-038
+
+**Category**
+
+Product / Architecture — Build Sequencing
+
+**Decision**
+
+**Build order is Release 1 MVP scope first**, following `docs/06_Feature_Roadmap.md` Phases 0–9 (Foundation, Authentication, Student Dashboard, Question Bank, Test Engine, Analytics, Ranking System, core Study Points/Gamification, Admin Panel). Phases 10+ (Teacher Portal, Parent Portal, AI Features, Community, Competitive/Arena features, Marketplace, Mobile Apps, Future Expansion) remain documented but are deferred until the MVP phases are complete.
+
+**Why**
+
+The full documented system (including the Arena/Battles/Tournaments engine, the full Notification Platform, and granular Admin RBAC described in later sprints of `docs/04_database.md` and `docs/05_API_Blueprint.md`) is significantly larger than a buildable first increment. The product owner confirmed Release 1 MVP scope as the near-term target, consistent with BR-024 ("ship small polished MVP, not feature-heavy platform").
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -994,6 +1040,7 @@ No major product or architecture decision should be implemented without first be
 | Version | Changes                                                                     |
 | ------- | --------------------------------------------------------------------------- |
 | 1.0     | Initial set of Board Ranking product and architecture decisions documented. |
+| 1.1     | BR-037 (email+password auth override for Release 1 build), BR-038 (Release 1 MVP build sequencing) added. |
 
 ---
 

@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
 import type { ApiResponse, HealthResponseData } from "@board-ranking/shared";
-import { prisma } from "../../lib/prisma.js";
-import { redis } from "../../lib/redis.js";
-import { logger } from "../../lib/logger.js";
+import { prisma } from "../lib/prisma.js";
+import { redis } from "../lib/redis.js";
+import { logger } from "../lib/logger.js";
 
 async function checkDatabase(): Promise<"ok" | "error"> {
   try {
@@ -30,6 +30,7 @@ export async function getHealth(_req: Request, res: Response): Promise<void> {
 
   const body: ApiResponse<HealthResponseData> = {
     success: true,
+    message: "",
     data: {
       status,
       database,

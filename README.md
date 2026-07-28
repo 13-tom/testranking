@@ -1,20 +1,30 @@
 # Board Ranking
 
-India's competitive ranking platform for CBSE students. Monorepo: Next.js
-frontend, Express API, Prisma/Postgres, Redis.
+India's competitive practice-and-ranking platform for CBSE students
+(Classes 9–12, Release 1). Monorepo: Next.js frontend, Express API,
+Prisma/Postgres, Redis.
 
-See `CLAUDE.md` for coding standards and the milestone roadmap (M1
-scaffolding → M2 auth → M3 question bank → M4 test engine → M5 ranking →
-M6 analytics → M7 polish). This README covers **M1**: a working skeleton
-with one real check — a landing page that confirms the frontend, API,
-database, and cache are all connected.
+`PRD/` and `docs/` are the authoritative product and engineering spec — see
+`CLAUDE.md` for how they govern this codebase and the current build target
+(Release 1 MVP, roadmap Phases 0–9 per `docs/06_Feature_Roadmap.md`).
+Decisions made specifically for this build (that deviate from or extend the
+docs) are logged as `BR-###` entries in `docs/12_Product_Decisions.md`.
+
+**Current status**: Phase 0 (Foundation) + Phase 1 (Authentication) done —
+email/password register, login, logout, and `me` endpoints, backed by the
+real `User`/`StudentProfile`/academic-hierarchy schema from
+`docs/04_database.md`. Next up: Phase 2, Student Dashboard.
 
 ## Project layout
 
 ```
+PRD/        Product requirements (13 chapters) — read before changing product behavior
+docs/       Engineering docs: database schema, API blueprint, design system,
+            engineering guide, feature roadmap, product decisions
 apps/
   web/      Next.js frontend (Vercel)
-  api/      Express API (Render)
+  api/      Express API (Render) — layered: routes/controllers/services/
+            rules/repositories, per docs/02_Engineering_Guide.md
 packages/
   shared/   TypeScript types shared by both apps
 ```
@@ -34,6 +44,23 @@ Requires Node.js 20+.
    - `npm run dev:api` — API on `http://localhost:4000`
    - `npm run dev:web` — web on `http://localhost:3000`
 6. Open `http://localhost:3000` — it should show "API status: ok".
+
+### Auth endpoints (Phase 1)
+
+```
+POST /api/v1/auth/register  { email, password, fullName, class, schoolId? }
+POST /api/v1/auth/login     { email, password }
+POST /api/v1/auth/logout    (requires Authorization: Bearer <token>)
+GET  /api/v1/auth/me        (requires Authorization: Bearer <token>)
+```
+
+Quick manual check once the API is running locally:
+
+```
+curl -X POST localhost:4000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"student@example.com","password":"hunter22","fullName":"Test Student","class":10}'
+```
 
 ## Deploying on free tiers
 

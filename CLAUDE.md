@@ -1,43 +1,91 @@
 # Board Ranking — Project Rules
 
-India's competitive ranking platform for CBSE students. Monorepo: Next.js
-frontend, Express API, Prisma/Postgres, Redis. See the milestone plan in
-conversation history for the overall roadmap (M1 scaffolding → M2 auth →
-M3 question bank → M4 test engine → M5 ranking → M6 analytics → M7 polish).
+India's competitive practice-and-ranking platform for CBSE students
+(Classes 9–12, Release 1). Monorepo: Next.js frontend, Express API,
+Prisma/Postgres, Redis.
+
+## Source of truth
+
+The `PRD/` (13 chapters) and `docs/` (12 engineering docs) folders are the
+**authoritative product and engineering spec** — read them before making
+product or architecture decisions, don't guess. Where they conflict with
+each other, prefer the more specific/later-numbered decision in
+`docs/12_Product_Decisions.md` over general prose elsewhere. Where this repo's
+actual build deviates from the docs, the deviation is recorded as a new
+`BR-###` entry in `docs/12_Product_Decisions.md` (e.g. BR-037, BR-038) —
+never diverge silently.
+
+**Current build target**: Release 1 MVP scope (BR-038) — roadmap Phases 0–9
+per `docs/06_Feature_Roadmap.md`: Foundation → Authentication → Student
+Dashboard → Question Bank → Test Engine → Analytics → Ranking System → core
+Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
+AI Features, Community, Arena/Competitive features, Marketplace, Mobile
+Apps) are documented but deferred.
+
+**Known deviation from the docs**: Release 1 auth in this build is email +
+password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as
+optional/nullable so OTP can be added later without a migration rework.
 
 ## Folder structure
 
-Feature-based, not type-based.
+Layered, per `docs/02_Engineering_Guide.md` (not feature-based folders):
 
-- API: `apps/api/src/features/<feature>/` containing
-  `<feature>.controller.ts`, `<feature>.service.ts`, `<feature>.routes.ts`,
-  `<feature>.schema.ts` (Zod). No global `controllers/`, `services/` dirs.
-- Web: `apps/web/src/features/<feature>/` for feature logic and components.
-  Route groups: `app/(public)`, `app/(student)`, `app/(admin)`.
+- API (`apps/api/src/`): `routes/`, `controllers/` (req/res only, never
+  business logic), `services/` (business logic), `rules/` (pure/
+  deterministic logic — validation, calculations), `repositories/` (DB
+  access only, no business logic), `middleware/`, `validators/` (Zod
+  schemas), `config/`, `types/`, `constants/`. Layering is one-directional:
+  Routes → Controllers → Services → Rules → Repositories → Prisma. Never
+  skip a layer.
+- Web (`apps/web/src/`): `app/`, `components/`, `features/`, `hooks/`,
+  `services/`, `store/`, `types/`, `lib/`.
 - Shared types/DTOs used by both apps live in `packages/shared`, never
   duplicated.
 - Reusable UI primitives (buttons, inputs, cards) live in
   `apps/web/src/components/ui`; feature components compose them.
+
+## Business logic ownership
+
+Backend only: marks, percentages, XP, Study Points, Study Level, ranks,
+achievements, badges, streaks, recommendations. The frontend and API
+controllers never calculate these — they only request/display values the
+Service/Rules layers computed. Never trust a score, rank, or XP value sent
+from the frontend.
 
 ## Type safety
 
 - TypeScript `strict: true` everywhere. No `any` without a comment
   explaining why it's unavoidable.
 - Zod schemas validate every API boundary (request bodies, query/path
-  params). Schemas live next to the feature that owns them.
+  params), living in `validators/`.
 
 ## API conventions
 
-- Consistent JSON response shape: `{ success, data, error }`.
-- Routes are REST-ish per resource, versioned under `/api/v1`.
+- Base path `/api/v1/`; never break existing versioned routes.
+- Standard response envelope (exact shape, per `docs/05_API_Blueprint.md`):
+  - Success: `{ success: true, message: "", data: {} }`
+  - Error: `{ success: false, message: "", errors: [] }`
+- Status codes: 200, 201, 400, 401, 403, 404, 409, 500. Never leak stack
+  traces, SQL errors, or internal details in error messages.
+- Auth tiers: Public (no JWT) / Protected (JWT) / Admin (separate Admin JWT
+  audience — admin tokens must be rejected on student-only routes and vice
+  versa).
 - One centralized Express error-handling middleware. Features throw typed
   errors (`AppError` subclasses); never `res.status(500).send(...)` inline
   in a route handler.
+
+## Naming conventions
+
+DB tables PascalCase, DB columns camelCase, API routes kebab-case, files/
+variables camelCase, components PascalCase, constants/env vars UPPER_CASE.
 
 ## Logging
 
 - Structured logging via pino in the API. No bare `console.log` in
   committed code (local scratch debugging only, remove before commit).
+- Log logins/logouts, OTP verification (when built), payments, errors,
+  suspicious activity. Never log passwords, OTP codes, JWTs, or other
+  secrets.
 
 ## Secrets and config
 
@@ -48,20 +96,22 @@ Feature-based, not type-based.
 ## Git hygiene
 
 - Small, focused commits per logical change.
-- One milestone = one PR (or a small number of PRs), not a single branch
-  dump at the end.
+- One roadmap phase (or a small number of PRs) at a time, not a single
+  branch dump at the end.
 
 ## Testing baseline
 
 - Every feature ships at least a happy-path test: API via supertest,
   frontend via component render tests. Test runner: Vitest.
-- Not chasing full coverage in early milestones, but the tooling/pattern
-  is established from M1 so testing isn't bolted on later.
+- Not chasing full coverage in early phases, but the tooling/pattern is
+  established from the start so testing isn't bolted on later.
 
 ## Scope discipline
 
 - No premature abstraction: don't build generic plugin systems, config
   layers, or multi-tenancy/i18n scaffolding for hypothetical future needs.
-  Solve what's specified now; keep it modular enough to extend later.
+  Solve the current roadmap phase; keep it modular enough to extend later.
 - Don't add features, refactors, or abstractions beyond what the current
-  milestone asks for.
+  phase asks for — this includes not reaching ahead into later roadmap
+  phases (Gamification, Arena, Notifications, Admin RBAC, etc.) before
+  their turn.
