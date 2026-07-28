@@ -1,13 +1,13 @@
-// Core data model for Board Ranking — Release 1 MVP, Phase 0 + Phase 1 scope.
+// Core data model for Board Ranking — Release 1 MVP, Phase 0-3 scope.
 // Field-for-field from docs/04_database.md (the authoritative schema doc).
-// Only Users/StudentProfile/academic-hierarchy tables exist so far; Question
-// Bank, Test Engine, Ranking, Gamification, and Admin RBAC tables are added
-// in their own future phases per docs/06_Feature_Roadmap.md. See CLAUDE.md.
+// Test Engine, Ranking, Gamification, and Admin RBAC tables are added in
+// their own future phases per docs/06_Feature_Roadmap.md. See CLAUDE.md.
 //
-// NOTE: docs/04_database.md also specifies raw-SQL case-insensitive unique
-// indexes on Subject/Chapter/Topic names (e.g. unique on lower(name) scoped
-// to parent) — deferred to the Phase 3 Question Bank migration, when these
-// tables are first actively written to by admin CRUD.
+// NOTE: docs/04_database.md also specifies raw-SQL functional/partial
+// indexes Prisma's DSL can't express (case-insensitive unique on
+// Subject/Chapter/Topic names scoped to parent; at-most-one-active-option
+// and at-most-one-active-correct-option on QuestionOption). These live as
+// hand-added SQL in the question_bank migration, not here.
 
 generator client {
   provider = "prisma-client-js"
@@ -156,7 +156,93 @@ model Topic {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  questions Question[]
+
   @@unique([chapterId, name])
   @@index([chapterId, isActive])
   @@map("topics")
+}
+
+enum QuestionType {
+  MCQ
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum BloomLevel {
+  REMEMBER
+  UNDERSTAND
+  APPLY
+  ANALYZE
+}
+
+enum QuestionStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+// docs/04_database.md §13. Topic-anchored: hierarchy is derived via
+// Question -> Topic -> Chapter -> Subject -> Board (no denormalized FKs).
+// referenceCode is BR-008's human-readable admin/content-ops ID
+// (e.g. "10M0101" = Class 10, Mathematics, Chapter 01, Question 01) —
+// students never see it. Only PUBLISHED + isActive questions reach students.
+model Question {
+  id               String         @id @default(uuid())
+  referenceCode    String         @unique
+  topicId          String
+  topic            Topic          @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  questionText     String
+  questionType     QuestionType   @default(MCQ)
+  image            String?
+  explanation      String?
+  difficulty       Difficulty
+  bloomLevel       BloomLevel?
+  timeLimitSeconds Int?
+  positiveMarks    Float
+  negativeMarks    Float          @default(0)
+  status           QuestionStatus @default(DRAFT)
+  language         String         @default("en")
+  source           String?
+  tags             String[]       @default([])
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  options QuestionOption[]
+
+  @@index([topicId, status, isActive])
+  @@index([status, isActive])
+  @@index([difficulty])
+  @@index([tags(ops: ArrayOps)], type: Gin)
+  @@map("questions")
+}
+
+// docs/04_database.md §13a. Owned by Question (CASCADE — questions are
+// never physically deleted, only archived per BR-009; options soft-delete
+// via isActive). Partial unique indexes (at most one active option per
+// optionKey, at most one active correct option) are raw SQL — see migration.
+model QuestionOption {
+  id           String   @id @default(uuid())
+  questionId   String
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionKey    String
+  optionText   String
+  optionImage  String?
+  explanation  String?
+  isCorrect    Boolean  @default(false)
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([questionId, isActive])
+  @@map("question_options")
 }

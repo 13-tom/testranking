@@ -6,6 +6,12 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { dashboardRouter } from "./routes/dashboard.routes.js";
+import { subjectRouter } from "./routes/subject.routes.js";
+import { chapterRouter } from "./routes/chapter.routes.js";
+import { adminSubjectRouter } from "./routes/admin-subject.routes.js";
+import { adminChapterRouter } from "./routes/admin-chapter.routes.js";
+import { adminTopicRouter } from "./routes/admin-topic.routes.js";
+import { adminQuestionRouter } from "./routes/admin-question.routes.js";
 
 export function createApp() {
   const app = express();
@@ -21,6 +27,12 @@ export function createApp() {
   app.use("/api/v1/health", healthRouter);
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/dashboard", dashboardRouter);
+  app.use("/api/v1/subjects", subjectRouter);
+  app.use("/api/v1/chapters", chapterRouter);
+  app.use("/api/v1/admin/subjects", adminSubjectRouter);
+  app.use("/api/v1/admin/chapters", adminChapterRouter);
+  app.use("/api/v1/admin/topics", adminTopicRouter);
+  app.use("/api/v1/admin/questions", adminQuestionRouter);
 
   app.use(errorHandler);
 
