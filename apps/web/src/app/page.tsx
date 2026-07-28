@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { fetchHealth } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
   const { data, isLoading, isError } = useQuery({
@@ -42,6 +44,15 @@ export default function LandingPage() {
       <div className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm dark:border-slate-800">
         <span className={`h-2.5 w-2.5 rounded-full ${dotColor}`} />
         <span>API status: {status}</span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Link href="/login">
+          <Button variant="secondary">Log in</Button>
+        </Link>
+        <Link href="/register">
+          <Button>Create account</Button>
+        </Link>
       </div>
     </main>
   );
