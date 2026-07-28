@@ -1,0 +1,237 @@
+// Core data model for Board Ranking.
+// Only the User feature has working API endpoints in M1 — the rest of this
+// schema exists now so later milestones (M2-M6) are additive, not
+// migration-heavy. See CLAUDE.md for the milestone roadmap.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum QuestionType {
+  MCQ
+  SINGLE_CORRECT
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TestType {
+  CHAPTER
+  SUBJECT
+  FULL_MOCK
+}
+
+enum TestStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+enum RankingScope {
+  SCHOOL
+  DISTRICT
+  STATE
+  NATIONAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  studentProfile StudentProfile?
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  class          String
+  schoolId       String?
+  school         School?  @relation(fields: [schoolId], references: [id])
+  board          String
+  state          String
+  district       String
+  profilePicture String?
+  xp             Int      @default(0)
+  coins          Int      @default(0)
+  streak         Int      @default(0)
+  level          Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  testAttempts TestAttempt[]
+  rankings     Ranking[]
+
+  @@map("student_profiles")
+}
+
+model School {
+  id       String  @id @default(cuid())
+  name     String
+  district String
+  state    String
+  board    String
+
+  studentProfiles StudentProfile[]
+
+  @@map("schools")
+}
+
+model Subject {
+  id   String @id @default(cuid())
+  name String @unique
+
+  chapters  Chapter[]
+  questions Question[]
+
+  @@map("subjects")
+}
+
+model Chapter {
+  id        String  @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  questions Question[]
+
+  @@unique([subjectId, name])
+  @@map("chapters")
+}
+
+model Question {
+  id          String             @id @default(cuid())
+  text        String
+  type        QuestionType
+  options     Json
+  correctKey  String
+  subjectId   String
+  subject     Subject            @relation(fields: [subjectId], references: [id])
+  chapterId   String
+  chapter     Chapter            @relation(fields: [chapterId], references: [id])
+  difficulty  QuestionDifficulty
+  marks       Int                @default(1)
+  explanation String?
+  status      QuestionStatus     @default(DRAFT)
+  version     Int                @default(1)
+  // Normalized-text hash used for exact-duplicate detection on upload (M3).
+  contentHash String
+  createdById String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  testQuestions TestQuestion[]
+  answers       Answer[]
+
+  @@index([contentHash])
+  @@map("questions")
+}
+
+model Test {
+  id          String     @id @default(cuid())
+  title       String
+  type        TestType
+  durationMin Int
+  status      TestStatus @default(DRAFT)
+  scheduledAt DateTime?
+  createdById String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  testQuestions TestQuestion[]
+  attempts      TestAttempt[]
+  rankings      Ranking[]
+
+  @@map("tests")
+}
+
+model TestQuestion {
+  id         String   @id @default(cuid())
+  testId     String
+  test       Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  order      Int
+  marks      Int
+
+  @@unique([testId, questionId])
+  @@map("test_questions")
+}
+
+model TestAttempt {
+  id          String        @id @default(cuid())
+  testId      String
+  test        Test          @relation(fields: [testId], references: [id])
+  studentId   String
+  student     StudentProfile @relation(fields: [studentId], references: [id])
+  status      AttemptStatus @default(IN_PROGRESS)
+  startedAt   DateTime      @default(now())
+  submittedAt DateTime?
+  score       Int?
+
+  answers Answer[]
+
+  @@unique([testId, studentId])
+  @@map("test_attempts")
+}
+
+model Answer {
+  id               String      @id @default(cuid())
+  attemptId        String
+  attempt          TestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question    @relation(fields: [questionId], references: [id])
+  selectedKey      String?
+  isCorrect        Boolean?
+  timeTakenSeconds Int?
+
+  @@unique([attemptId, questionId])
+  @@map("answers")
+}
+
+model Ranking {
+  id         String       @id @default(cuid())
+  studentId  String
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+  testId     String?
+  test       Test?        @relation(fields: [testId], references: [id])
+  scope      RankingScope
+  rank       Int
+  score      Int
+  computedAt DateTime     @default(now())
+
+  @@index([scope, testId])
+  @@map("rankings")
+}
