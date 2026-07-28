@@ -9,7 +9,11 @@ import { authRouter } from "./routes/auth.routes.js";
 export function createApp() {
   const app = express();
 
-  app.use(cors({ origin: env.CORS_ORIGIN.split(",") }));
+  app.use(
+    cors({
+      origin: env.CORS_ORIGIN.split(",").map((origin) => origin.trim().replace(/\/$/, "")),
+    }),
+  );
   app.use(express.json());
   app.use(requestLogger);
 
