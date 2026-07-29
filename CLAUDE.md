@@ -22,10 +22,11 @@ Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
 AI Features, Community, Arena/Competitive features, Marketplace, Mobile
 Apps) are documented but deferred.
 
-**Progress**: Phases 0–3 (Foundation, Authentication, Student Dashboard,
-Question Bank) are built, tested, and deployed live (Vercel + Render +
-Neon + Upstash). Phase 4 (Test Engine) is next. See `docs/12_Product_Decisions.md`
-BR-037 through BR-041 for every deviation recorded so far.
+**Progress**: Phases 0–4 (Foundation, Authentication, Student Dashboard,
+Question Bank, Test Engine) are built and tested locally; Phases 0–3 are
+deployed live (Vercel + Render + Neon + Upstash), Phase 4 pending its next
+deploy. Phase 5 (Analytics) is next. See `docs/12_Product_Decisions.md`
+BR-037 through BR-042 for every deviation recorded so far.
 
 **Known deviations from the docs**: Release 1 auth in this build is email +
 password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as

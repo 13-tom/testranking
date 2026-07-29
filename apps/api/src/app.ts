@@ -12,6 +12,9 @@ import { adminSubjectRouter } from "./routes/admin-subject.routes.js";
 import { adminChapterRouter } from "./routes/admin-chapter.routes.js";
 import { adminTopicRouter } from "./routes/admin-topic.routes.js";
 import { adminQuestionRouter } from "./routes/admin-question.routes.js";
+import { testRouter } from "./routes/test.routes.js";
+import { adminTestRouter } from "./routes/admin-test.routes.js";
+import { testAttemptRouter } from "./routes/test-attempt.routes.js";
 
 export function createApp() {
   const app = express();
@@ -33,6 +36,9 @@ export function createApp() {
   app.use("/api/v1/admin/chapters", adminChapterRouter);
   app.use("/api/v1/admin/topics", adminTopicRouter);
   app.use("/api/v1/admin/questions", adminQuestionRouter);
+  app.use("/api/v1/tests", testRouter);
+  app.use("/api/v1/admin/tests", adminTestRouter);
+  app.use("/api/v1/attempts", testAttemptRouter);
 
   app.use(errorHandler);
 

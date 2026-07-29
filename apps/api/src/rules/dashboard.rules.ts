@@ -21,9 +21,36 @@ export function buildTodaysGoal(profileCompletion: number): DashboardGoal {
   };
 }
 
-// Test Engine / Question Bank (Phases 3-4) don't exist yet — nothing to
-// recommend. Stub kept in the Rules layer so real logic slots in later
-// without moving business logic out of the backend (CLAUDE.md).
-export function buildRecommendedTest(): DashboardRecommendedTest {
+type ChapterTestAccuracy = {
+  test: { id: string; name: string };
+  accuracy: number | null;
+};
+
+type UnattemptedTest = { id: string; name: string } | null;
+
+// Phase 4 (Test Engine) is live: recommend the Chapter Test the student
+// did worst on (accuracy-wise), or their first not-yet-attempted Chapter
+// Test if they haven't attempted any yet. Deliberately simple/rule-based —
+// no AI, matching PRD Ch10 §8/§10 ("No AI in MVP. Rule-based
+// recommendations only").
+export function buildRecommendedTest(
+  chapterAttempts: ChapterTestAccuracy[],
+  unattemptedChapterTest: UnattemptedTest,
+): DashboardRecommendedTest {
+  if (chapterAttempts.length > 0) {
+    const worst = chapterAttempts.reduce((min, a) => ((a.accuracy ?? 100) < (min.accuracy ?? 100) ? a : min));
+    return {
+      id: worst.test.id,
+      testName: worst.test.name,
+      reason: `Your accuracy here was ${Math.round(worst.accuracy ?? 0)}% — try again to improve.`,
+    };
+  }
+  if (unattemptedChapterTest) {
+    return {
+      id: unattemptedChapterTest.id,
+      testName: unattemptedChapterTest.name,
+      reason: "You haven't attempted any chapter tests yet — start here.",
+    };
+  }
   return null;
 }

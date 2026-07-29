@@ -1084,6 +1084,40 @@ Approved
 
 ---
 
+## BR-042
+
+**Category**
+
+Product / Architecture — Test Engine schema scope (Phase 4)
+
+**Decision**
+
+Phase 4 (Test Engine) builds the full documented architecture — admin-authored `Test` blueprints, seeded/reproducible question selection with the topic→chapter→subject pool-widening fallback, immutable per-question snapshot pinning, CAS-guarded exactly-once submission, and a lazy auto-submit-on-read path — rather than a lean roadmap-only subset. Two schema pieces this structurally requires are added now, narrower than their originally-deferred scope:
+
+* **`QuestionVersion`** (system-generated snapshots only, no admin versioning/browse/audit UI). `AttemptQuestion` must pin to an immutable snapshot of a question's text/options/correct-answer so a live edit to the Question Bank can never retroactively change an in-progress or already-scored attempt. This narrows BR-041's deferral: the deferred piece is specifically the Phase 9 admin authoring/audit UI around versions, not the FK-supporting snapshot table itself, which the Test Engine cannot function correctly without.
+* **`AuditLog`** (minimal — a plain `eventType` string column, not an enum; only `"TEST_SUBMITTED"` is emitted this phase). BR-026's submission transaction requires one audit entry per submission; this is one extra row inside a transaction the code already opens, not new infrastructure. No admin browsing UI is built for it.
+
+One additional field, `StudentAnswer.markedForReview`, is added to support the PRD Chapter 12 §10 "Review Screen" (mark-a-question-for-review-before-submitting) — it's in the PRD narrative but not in `docs/04_database.md`'s literal `StudentAnswer` field list, so it's recorded here rather than added silently.
+
+The one piece of the documented architecture NOT made to run live is the background auto-submit sweeper (`apps/api/src/jobs/attempt-sweeper.job.ts`): it is fully implemented and correct, but its periodic `setInterval` registration in `index.ts` is commented out, because Render's free-tier single Node process spins down on inactivity and cannot reliably run a background timer. A lazy check-and-close-on-read (`ensureAttemptFreshRow`, called at the top of every attempt read/write path) gives the same "no student is ever stuck on an expired attempt" guarantee in practice, since it only needs to hold by the time someone next looks at the attempt. Activation notes for real infra (a paid worker dyno, or an external cron hitting an internal endpoint) are left in the file as comments.
+
+**Why**
+
+`docs/04_database.md` and `docs/05_API_Blueprint.md`'s Test Engine design (§12-15, BR-026/027/028) is unambiguous that snapshot-pinning and submission auditing are load-bearing correctness requirements, not optional polish — without `QuestionVersion`, a mid-attempt admin edit to a question's correct answer would silently corrupt already-in-progress or already-scored attempts. Building Test Engine at all, per this session's explicit scope decision, means building on top of these two tables now rather than stubbing scoring against the live, editable `Question` table.
+
+**Implementation notes**
+
+* `QuestionVersion` rows are created lazily by `ensureCurrentQuestionVersion()` in `apps/api/src/services/test-attempt.service.ts` at paper-generation time, reused (not duplicated) if the live question is unchanged since the latest version via a JSON deep-equality check (`isSnapshotCurrent`, `apps/api/src/rules/question-version.rules.ts`).
+* All scoring, result display, and pre-submission question rendering read exclusively from `QuestionVersion.snapshot` (`apps/api/src/rules/test-scoring.rules.ts`, `test-attempt.service.ts`'s DTO mappers) — never the live `Question`/`QuestionOption` tables — once an attempt has been generated.
+* `AuditLog` gets its one `"TEST_SUBMITTED"` write inside the same `prisma.$transaction` as scoring/evaluation in `evaluateClaimedAttempt()`. No query/browsing endpoint exists yet; that's Phase 9 Admin Panel scope, consistent with BR-040/BR-041.
+* Revisit `QuestionVersion`/`AuditLog` UI (admin diff view, audit log browser) when Phase 9 (Admin Panel) is built — this decision only narrows what "deferred to Phase 9" means, it doesn't reverse it.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1120,6 +1154,7 @@ No major product or architecture decision should be implemented without first be
 | 1.0     | Initial set of Board Ranking product and architecture decisions documented. |
 | 1.1     | BR-037 (email+password auth override for Release 1 build), BR-038 (Release 1 MVP build sequencing) added. |
 | 1.2     | BR-039 (localStorage JWT storage, Phase 2), BR-040 (simple admin role check in place of the full Admin JWT audience system, Phase 3), BR-041 (Question Bank content authoring: seed script + minimal admin CRUD in place of the Phase 9 review workflow) added. |
+| 1.3     | BR-042 (Test Engine, Phase 4: minimal `QuestionVersion` + `AuditLog` tables added now rather than fully deferred to Phase 9, `StudentAnswer.markedForReview` added, background auto-submit sweeper implemented but left disabled on this infra in favor of a lazy check-on-read) added. |
 
 ---
 

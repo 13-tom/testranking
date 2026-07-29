@@ -1,13 +1,14 @@
-// Core data model for Board Ranking — Release 1 MVP, Phase 0-3 scope.
+// Core data model for Board Ranking — Release 1 MVP, Phase 0-4 scope.
 // Field-for-field from docs/04_database.md (the authoritative schema doc).
-// Test Engine, Ranking, Gamification, and Admin RBAC tables are added in
-// their own future phases per docs/06_Feature_Roadmap.md. See CLAUDE.md.
+// Ranking, Gamification, and Admin RBAC tables are added in their own
+// future phases per docs/06_Feature_Roadmap.md. See CLAUDE.md.
 //
 // NOTE: docs/04_database.md also specifies raw-SQL functional/partial
 // indexes Prisma's DSL can't express (case-insensitive unique on
 // Subject/Chapter/Topic names scoped to parent; at-most-one-active-option
-// and at-most-one-active-correct-option on QuestionOption). These live as
-// hand-added SQL in the question_bank migration, not here.
+// and at-most-one-active-correct-option on QuestionOption; at-most-one
+// active TestAttempt per student per test). These live as hand-added SQL
+// in the question_bank and test_engine migrations, not here.
 
 generator client {
   provider = "prisma-client-js"
@@ -25,20 +26,21 @@ enum Role {
 
 // Authentication only. Never store XP, Rank, or Class here (docs/04_database.md §5).
 model User {
-  id           String   @id @default(uuid())
-  phone        String?  @unique
-  email        String   @unique
+  id           String    @id @default(uuid())
+  phone        String?   @unique
+  email        String    @unique
   // BR-037: Release 1 auth for this build is email + password (overrides the
   // docs' default Mobile+OTP-only, no-password model). Kept required here
   // since password auth is how registration actually works in this build.
   passwordHash String
-  role         Role     @default(STUDENT)
-  isVerified   Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         Role      @default(STUDENT)
+  isVerified   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   lastLogin    DateTime?
 
   studentProfile StudentProfile?
+  testAttempts   TestAttempt[]
 
   @@map("users")
 }
@@ -98,6 +100,7 @@ model Board {
   updatedAt DateTime @updatedAt
 
   subjects Subject[]
+  tests    Test[]
 
   @@map("boards")
 }
@@ -115,7 +118,8 @@ model Subject {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  chapters Chapter[]
+  chapters     Chapter[]
+  testSubjects TestSubject[]
 
   @@unique([boardId, class, name])
   @@index([class])
@@ -136,7 +140,8 @@ model Chapter {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  topics Topic[]
+  topics       Topic[]
+  testChapters TestChapter[]
 
   @@unique([subjectId, name])
   @@unique([subjectId, chapterNumber])
@@ -156,7 +161,8 @@ model Topic {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  questions Question[]
+  questions  Question[]
+  testTopics TestTopic[]
 
   @@unique([chapterId, name])
   @@index([chapterId, isActive])
@@ -216,7 +222,10 @@ model Question {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  options QuestionOption[]
+  options          QuestionOption[]
+  versions         QuestionVersion[]
+  attemptQuestions AttemptQuestion[]
+  studentAnswers   StudentAnswer[]
 
   @@index([topicId, status, isActive])
   @@index([status, isActive])
@@ -245,4 +254,273 @@ model QuestionOption {
 
   @@index([questionId, isActive])
   @@map("question_options")
+}
+
+// --- Phase 4: Test Engine ---
+// BR-042: QuestionVersion and AuditLog are introduced here, narrower than
+// BR-041's Phase 9 deferral — see docs/12_Product_Decisions.md BR-042.
+
+enum TestCategory {
+  CHAPTER
+  SUBJECT
+  FULL_SYLLABUS
+  MOCK
+  DAILY_CHALLENGE // schema-complete only — no generation logic (Gamification/streaks, Phase 8)
+}
+
+enum TestMode {
+  PRACTICE
+  RANKED
+}
+
+enum TestVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum TestStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ResultPublishPolicy {
+  IMMEDIATE
+  AFTER_END_TIME // field exists, not enforced yet — BR-028 defers this to Sprint 6 in the source docs
+  MANUAL // field exists, not enforced yet — BR-028 defers this to Sprint 6 in the source docs
+}
+
+enum RankingScope {
+  NONE
+  SCHOOL
+  DISTRICT
+  STATE
+  INDIA
+}
+
+enum AttemptStatus {
+  CREATED // reserved, not produced by any Release-1 code path — BR-042
+  STARTED
+  SUBMITTED
+  AUTO_SUBMITTED
+  EVALUATED
+  RANKED // reserved for Phase 6 (Ranking)
+  ABANDONED // reserved, not produced by any Release-1 code path — BR-042
+}
+
+// docs/04_database.md §13b, narrowed per BR-042: minimal immutable
+// point-in-time Question+Options snapshot, created lazily whenever the
+// Test Engine's generation algorithm pins a question onto a paper — NOT
+// the full Phase 9 admin audit/versioning trail (no restore endpoints, no
+// version-browsing UI). createdBy is nullable: Release-1 versions are
+// system-generated at generation time, not admin edits.
+model QuestionVersion {
+  id            String   @id @default(uuid())
+  questionId    String
+  question      Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  version       Int
+  snapshot      Json
+  reason        String?
+  changeSummary String
+  createdBy     String?
+  createdAt     DateTime @default(now())
+
+  attemptQuestions AttemptQuestion[]
+  studentAnswers   StudentAnswer[]
+
+  @@unique([questionId, version])
+  @@index([questionId, createdAt])
+  @@map("question_versions")
+}
+
+// docs/04_database.md §12. A Test is the blueprint from which per-attempt
+// papers (AttemptQuestion rows) are generated — never a question list
+// itself. Scope resolved via TestSubject/TestChapter/TestTopic at
+// generation time, then pinned per attempt (never re-resolved later).
+model Test {
+  id                       String              @id @default(uuid())
+  name                     String
+  description              String?
+  boardId                  String
+  board                    Board               @relation(fields: [boardId], references: [id], onDelete: Restrict)
+  class                    Int
+  questionCount            Int
+  difficultyDistribution   Json
+  questionTypeDistribution Json                @default("{\"MCQ\":100}")
+  positiveMarks            Float               @default(1)
+  negativeMarks            Float               @default(0)
+  language                 String              @default("en")
+  duration                 Int
+  passingMarks             Float
+  shuffleQuestions         Boolean             @default(true)
+  shuffleOptions           Boolean             @default(true)
+  visibility               TestVisibility      @default(PUBLIC)
+  category                 TestCategory
+  mode                     TestMode            @default(PRACTICE)
+  startTime                DateTime?
+  endTime                  DateTime?
+  instructions             String?
+  calculatorAllowed        Boolean             @default(false)
+  reviewAllowed            Boolean             @default(true)
+  resultPublishPolicy      ResultPublishPolicy @default(IMMEDIATE)
+  rankingScope             RankingScope        @default(NONE)
+  maxAttempts              Int                 @default(1)
+  status                   TestStatus          @default(DRAFT)
+  isActive                 Boolean             @default(true)
+  createdBy                String
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  testSubjects TestSubject[]
+  testChapters TestChapter[]
+  testTopics   TestTopic[]
+  attempts     TestAttempt[]
+
+  @@index([status, isActive])
+  @@index([boardId, class])
+  @@index([category])
+  @@map("tests")
+}
+
+// docs/04_database.md §12a. Empty TestChapter rows for a test = all
+// chapters of its TestSubject rows; empty TestTopic rows = all topics of
+// the resolved chapters.
+model TestSubject {
+  testId    String
+  test      Test    @relation(fields: [testId], references: [id], onDelete: Restrict)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@id([testId, subjectId])
+  @@index([subjectId])
+  @@map("test_subjects")
+}
+
+model TestChapter {
+  testId    String
+  test      Test    @relation(fields: [testId], references: [id], onDelete: Restrict)
+  chapterId String
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+
+  @@id([testId, chapterId])
+  @@index([chapterId])
+  @@map("test_chapters")
+}
+
+model TestTopic {
+  testId  String
+  test    Test   @relation(fields: [testId], references: [id], onDelete: Restrict)
+  topicId String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@id([testId, topicId])
+  @@index([topicId])
+  @@map("test_topics")
+}
+
+// docs/04_database.md §14. expiresAt is "the ONLY deadline authority"
+// (BR-027). selectionMeta is the "provenance triple" (seed,
+// blueprintSnapshot, driftPp, poolSizes) that lets a generated paper
+// reproduce forever. Partial unique index (at most one CREATED/STARTED
+// attempt per student per test) is raw SQL — see the test_engine migration.
+model TestAttempt {
+  id                        String        @id @default(uuid())
+  studentId                 String
+  student                   User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  testId                    String
+  test                      Test          @relation(fields: [testId], references: [id], onDelete: Restrict)
+  status                    AttemptStatus @default(STARTED)
+  selectionAlgorithmVersion String        @default("v1")
+  selectionMeta             Json
+  startedAt                 DateTime?
+  expiresAt                 DateTime?
+  sessionId                 String        @default(uuid())
+  submittedAt               DateTime?
+  score                     Float?
+  totalMarks                Float?
+  percentage                Float?
+  accuracy                  Float?
+  correctCount              Int?
+  wrongCount                Int?
+  unansweredCount           Int?
+  timeTaken                 Int?
+  studyPointsEarned         Int?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  attemptQuestions AttemptQuestion[]
+  studentAnswers   StudentAnswer[]
+
+  @@index([studentId, testId])
+  @@index([testId])
+  @@index([status, expiresAt])
+  @@index([submittedAt])
+  @@map("test_attempts")
+}
+
+// docs/04_database.md §14a — the frozen paper. Points to what the bank
+// immortalized (questionVersionId), snapshots what the attempt invented
+// (order, option order). Scoring/rendering always read the pinned
+// snapshot, never the live Question/QuestionOption rows.
+model AttemptQuestion {
+  attemptId         String
+  attempt           TestAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          Question        @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  displayOrder      Int
+  optionOrder       Json
+
+  @@id([attemptId, questionId])
+  @@unique([attemptId, displayOrder])
+  @@index([questionId])
+  @@index([questionVersionId])
+  @@map("attempt_questions")
+}
+
+// docs/04_database.md §15. One row per question per attempt. answerSequence
+// is a client-generated monotonic counter — the server rejects writes
+// where clientSequence <= the stored value (409 STALE_ANSWER, mapped to
+// ConflictError). clientRequestId makes retried writes idempotent.
+// markedForReview added per PRD Ch12 §10's Review Screen — not in
+// docs/04_database.md §15's literal field list, recorded in BR-042.
+model StudentAnswer {
+  id                String          @id @default(uuid())
+  attemptId         String
+  attempt           TestAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          Question        @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  selectedOptionKey String?
+  markedForReview   Boolean         @default(false)
+  answerSequence    Int
+  clientRequestId   String          @unique
+  answeredAt        DateTime        @default(now())
+  isCorrect         Boolean?
+  marksAwarded      Float?
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@map("student_answers")
+}
+
+// docs/04_database.md §24, narrowed per BR-042: minimal slice, only the
+// TEST_SUBMITTED event (BR-026), written atomically with the evaluation
+// transaction. No admin log-browsing UI (Phase 9). eventType is a plain
+// string, not an enum, so future event types don't need a migration.
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  eventType  String
+  entityType String
+  entityId   String
+  metadata   Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }
