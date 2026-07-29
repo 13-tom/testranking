@@ -1006,6 +1006,84 @@ Approved
 
 ---
 
+## BR-039
+
+**Category**
+
+Architecture — Frontend Session Storage (Phase 2, Student Dashboard)
+
+**Decision**
+
+**The student JWT is stored in `localStorage`**, sent as `Authorization: Bearer <token>` on every protected request. Route protection (redirecting an unauthenticated visitor away from `/dashboard`, `/profile`, `/settings`) is a client-side React guard, not Next.js Edge middleware.
+
+**Why**
+
+The backend already returns the token in the JSON response body (not a `Set-Cookie` header), CORS has no `credentials: true`, and there is no `cookie-parser` anywhere in the API. Switching to httpOnly cookies now would mean reworking the already-shipped, already-tested Phase 1 auth code. Since the token lives in `localStorage` rather than a cookie, Edge middleware can't see it before render, so route protection is necessarily a client component.
+
+**Implementation notes**
+
+* `apps/web/src/lib/auth-storage.ts` wraps `localStorage` access (SSR-safe).
+* `apps/web/src/components/protected-route.tsx` is the client-side guard.
+* Accepted tradeoff: `localStorage` is readable by any injected script (XSS exposure) vs. httpOnly cookies which aren't. Acceptable for Release 1 MVP scope (no third-party or user-generated HTML rendering surface yet) — flagged here as a future hardening item, not a blocker.
+
+**Status**
+
+Approved
+
+---
+
+## BR-040
+
+**Category**
+
+Architecture — Admin Authentication (Phase 3, Question Bank)
+
+**Decision**
+
+**Admin-only routes are gated by a simple role check**, not the full audience-based Admin JWT system described in `docs/04_database.md`/`docs/05_API_Blueprint.md` (separate token audience, `verifyAdminAccessToken()`, RBAC permission codes). A `requireAdmin` middleware composes after the existing `authenticate` middleware and checks the already-issued JWT's `role === "ADMIN"` field.
+
+**Why**
+
+Question Bank content authoring (Phase 3) needs *some* admin gating today, but the full Admin JWT audience/RBAC system is explicitly Phase 9 (Admin Panel) scope per BR-038's build sequencing. Building it early would mean reaching ahead of the roadmap for a feature this phase doesn't otherwise need — `User.role` already has an `ADMIN` enum value from Phase 0, unused until now, which is enough to gate `POST`/`PATCH` on Subject/Chapter/Topic/Question/QuestionOption.
+
+**Implementation notes**
+
+* `apps/api/src/middleware/requireAdmin.ts` — throws the new `ForbiddenError` (403) if `req.user?.role !== "ADMIN"`.
+* No separate admin login/audience/token-issuance flow exists. Admin accounts are currently created out-of-band (directly in the database); the existing `/auth/login` endpoint is student-specific (requires a `StudentProfile`) and does not serve admins. A proper admin onboarding/login flow is Phase 9 scope.
+* Revisit when Phase 9 (Admin Panel) is built — this decision is explicitly a placeholder, not a permanent architecture choice.
+
+**Status**
+
+Approved
+
+---
+
+## BR-041
+
+**Category**
+
+Product / Architecture — Question Bank Content Authoring (Phase 3)
+
+**Decision**
+
+**Question Bank content gets into the system two ways**: (1) an idempotent seed script (`apps/api/prisma/seed.ts`) loading real, accurate starter content, and (2) minimal admin-only CRUD endpoints (`POST`/`PATCH` on `/admin/subjects`, `/admin/chapters`, `/admin/topics`, `/admin/questions`, `/admin/questions/:id/options`). Neither builds the full Phase 9 Admin Panel review workflow — no review queue, no bulk-approve/reject/archive endpoints, no permission-coded RBAC (`QUESTION_REVIEW`/`QUESTION_APPROVE`), no `QuestionVersions` audit trail.
+
+**Why**
+
+The documented spec never actually resolved this: `docs/05_API_Blueprint.md` MODULE 34 (the real Admin Panel build, Phase 9) only has question *moderation* endpoints (approve/reject/archive/bulk-*) — there is no `POST /admin/questions` or `PATCH /admin/questions/:id` anywhere in the blueprint, despite `QUESTION_CREATE`/`QUESTION_UPDATE` permission codes being referenced elsewhere as if such endpoints existed. Phase 3's own roadmap deliverable is "Questions available," which requires *some* way to author content well before Phase 9 exists.
+
+**Implementation notes**
+
+* Publish-gate validation (`apps/api/src/rules/question-bank.rules.ts`'s `evaluatePublishGate`) is the one piece of the documented editorial workflow actually enforced: a question can only transition to `PUBLISHED` with exactly one correct active option, 2-6 active options total, and a non-empty explanation (matching PRD Chapter 11's "questions without explanations cannot be published"). A direct admin `PATCH .../questions/:id { status: "PUBLISHED" }` is sufficient for this phase — no separate review-queue endpoints.
+* Reference codes (BR-008) use a single-letter subject code (e.g. `10M0101`), matching the docs' own worked example, not the two-letter `CCSSCCQQ` label text that appears alongside it in `docs/04_database.md` — a documentation-format clarification, not a behavioral deviation.
+* Revisit when Phase 9 (Admin Panel) is built: the review-queue/bulk-moderation/RBAC endpoints and `QuestionVersions` audit trail described in the docs should be added then, not retrofitted piecemeal.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1041,6 +1119,7 @@ No major product or architecture decision should be implemented without first be
 | ------- | --------------------------------------------------------------------------- |
 | 1.0     | Initial set of Board Ranking product and architecture decisions documented. |
 | 1.1     | BR-037 (email+password auth override for Release 1 build), BR-038 (Release 1 MVP build sequencing) added. |
+| 1.2     | BR-039 (localStorage JWT storage, Phase 2), BR-040 (simple admin role check in place of the full Admin JWT audience system, Phase 3), BR-041 (Question Bank content authoring: seed script + minimal admin CRUD in place of the Phase 9 review workflow) added. |
 
 ---
 

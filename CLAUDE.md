@@ -22,9 +22,19 @@ Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
 AI Features, Community, Arena/Competitive features, Marketplace, Mobile
 Apps) are documented but deferred.
 
-**Known deviation from the docs**: Release 1 auth in this build is email +
+**Progress**: Phases 0–3 (Foundation, Authentication, Student Dashboard,
+Question Bank) are built, tested, and deployed live (Vercel + Render +
+Neon + Upstash). Phase 4 (Test Engine) is next. See `docs/12_Product_Decisions.md`
+BR-037 through BR-041 for every deviation recorded so far.
+
+**Known deviations from the docs**: Release 1 auth in this build is email +
 password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as
 optional/nullable so OTP can be added later without a migration rework.
+Admin routes are gated by a simple `role === "ADMIN"` check reusing the
+student JWT, not the full Admin JWT audience/RBAC system — see BR-040.
+Question Bank content authoring (seed script + minimal admin CRUD) stands
+in for the Phase 9 Admin Panel's review workflow until that phase is
+built — see BR-041.
 
 ## Folder structure
 
