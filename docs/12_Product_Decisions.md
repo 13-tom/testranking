@@ -1118,6 +1118,53 @@ Approved
 
 ---
 
+## BR-043
+
+**Category**
+
+Product / Architecture — Analytics (Phase 5)
+
+**Decision**
+
+Phase 5 (Analytics) builds the full documented system — 5 new pre-computed analytics tables (`StudentAnalytics`, `StudentSubjectAnalytics`, `StudentChapterAnalytics`, `StudentTopicAnalytics`, `StudentProgressSnapshot`, `docs/04_database.md` §16b-16f) and 6 read-only API modules (Analytics, Analytics Dashboard, Intelligence, Weakness Detection, Trend Engine, Recommendation Engine — `docs/05_API_Blueprint.md` Modules 13-18, ~35 endpoints) — rather than the roadmap's lean 6-bullet subset, matching the precedent set for Phase 4 (Test Engine). This narrowed several points the docs themselves leave unspecified or in conflict; all are recorded here as one entry, following BR-041/BR-042's pattern:
+
+1. **FK target**: all 5 tables FK to `User.id`, not `StudentProfile.id` as literally listed in the docs — matches `TestAttempt.studentId`'s existing FK target, avoiding a second identifier scheme on every join.
+2. **`onDelete` behavior**: all 5 `studentId` FKs use `Cascade`, not `Restrict` as literally listed in the docs — these tables are pure derived/computed caches (the sole writer fully recomputes them from `TestAttempt`/`StudentAnswer` on every run), so deleting a `User` should clean them up automatically rather than being blocked by them, matching `TestAttempt.studentId`'s existing `Cascade` behavior. (`subjectId`/`chapterId`/`topicId` FKs stay `Restrict`, consistent with the existing Question Bank/Test Engine reference-data pattern.)
+3. **`averageTimePerQuestion`**: no per-question elapsed-time field exists anywhere in the schema (`AttemptQuestion` has none, `StudentAnswer.answeredAt` is a last-write timestamp, not elapsed time). Approximated as `attempt.timeTaken / questionsInAttempt`, evenly distributing whole-attempt time across its pinned questions — a known, documented approximation, not true per-question timing.
+4. **`weaknessScore` name collision**: `StudentChapterAnalytics.weaknessScore` (DB column, `100 - accuracy`) and Module 16's response field of the same name (a 4-term weighted composite: `0.40×accuracyPenalty + 0.25×volumePenalty + 0.15×speedPenalty + 0.20×masteryPenalty`) are different values sharing one name in the source docs. The raw DB column is never exposed as `weaknessScore` in Module 16 responses — it's consumed only as the `masteryPenalty` input signal for chapters. Module 13's own `/analytics/chapters/:id` legitimately calls the DB column `weaknessScore` (1:1, no collision there).
+5. **Rank data doesn't exist yet** (Leaderboard/RankSnapshot are Phase 6, not built): `StudentAnalytics.averageRank`/`bestRank` and `StudentProgressSnapshot.rank` stay `null`. One stub pair, `getCurrentRank()`/`getTotalStudents()` (`apps/api/src/repositories/rank.repository.ts`), returns `null` today with a Phase-6 pointer comment, mirroring the existing `// Phase 6 (Ranking) doesn't exist yet` comment in `test-attempt.service.ts`. Every rank-dependent endpoint degrades gracefully instead of erroring: `/trends/rank` always classifies `INSUFFICIENT_DATA`, Rank milestones always `achieved:false, value:null`, momentum's `rankTrendScore` defaults to neutral `50`, and rank-based forecasts/goals are always `null`.
+6. **Module 14 route collision**: its documented `/dashboard/*` paths collide with the existing Phase 2 mount at `/api/v1/dashboard`. Mounted instead at `/api/v1/analytics-dashboard`, with files named `analytics-dashboard.*` throughout (never bare `dashboard.*`) to avoid import confusion with the Phase 2 files of the same short name. The existing Phase 2 dashboard (`dashboard.service.ts`/`dashboard.rules.ts`) is untouched — Analytics is purely additive.
+7. **Momentum's accuracy/rank trend-score curves** (docs give threshold anchors only, no interpolation formula): linear and symmetric — `accuracyTrendScore = clamp(50 + delta×6.25, 0, 100)`, `rankTrendScore = clamp(50 − delta×3.33, 0, 100)` (defaults to `50` when rank is absent, per #5).
+8. **Momentum's frequency/consistency scores** (docs give only a ceiling anchor): `frequencyScore = min(100, testsLast7Days/7×100)`, `consistencyScore = min(100, studyStreak/14×100)`.
+9. **Forecast's daily-improvement rates** (referenced in docs but never derived): computed as the observed delta-per-day between the two-halves split already used for trend classification; only non-null when the classification is IMPROVING/RAPIDLY_IMPROVING.
+10. **Recommendation `trendFactor`** (docs give only 2 of 5 anchor points — `IMPROVING=15`, `RAPIDLY_DECLINING=100`): filled in as `RAPIDLY_IMPROVING=0`, `STABLE=50`, `DECLINING=75`, `INSUFFICIENT_DATA=50`.
+11. **Revision urgency's `volumeBonus`** (undefined in docs): a small capped term, `min(10, questionsSolved/50×10)`, so it can't dominate the accuracy/weakness terms.
+12. **Rank trend's missing `INSUFFICIENT_DATA` row**: added for consistency with accuracy trend's own classifier (moot today since rank is always null per #5).
+13. **Cursor pagination** (no existing pattern in the repo, and the leaderboard-style base64 `(rank,id)` cursor doesn't fit these taxonomy-bounded lists): in-memory — fetch the student's full scope (bounded by chapter/topic taxonomy size, not attempt volume), sort deterministically in the rules layer, slice with a shared `paginateByCursor()` helper (`apps/api/src/rules/pagination.rules.ts`). No raw SQL keyset pagination needed.
+14. **PRACTICE vs RANKED inclusion**: analytics counts every `EVALUATED` attempt regardless of mode or retake — it measures learning volume, not competitive standing, so BR-036's Best-Attempt dedup does not apply here.
+15. **`testsTaken` vs `testsCompleted`**: identical value (both = count of `EVALUATED` attempts) — Release 1 has no meaningful in-between state to distinguish them with.
+16. **`StudentProgressSnapshot.studyPoints`**: redefined as cumulative `Σ TestAttempt.studyPointsEarned` (not a snapshot of `StudentProfile.studyPoints`, which has no historical ledger) — keeps it derivable purely from `TestAttempt`, so the writer stays a true idempotent recompute. Type `Int`, matching `studyPointsEarned`'s type (docs literally list `Float`).
+17. **Per-attempt subject score** (undefined for multi-subject tests): `Σ marksAwarded` of that attempt's answers whose question resolves to the target subject via the pinned question hierarchy — correct regardless of test category.
+18. **Snapshot grain**: cumulative-as-of-that-date (not single-day stats), recomputed for every distinct date the student has ever submitted on; `/analytics-dashboard/progress?interval=weekly|monthly` bucketing takes the last (max-date) snapshot per period, not an average.
+19. **Module 17's `/trends/subjects` per-subject trend** (no per-subject-per-date time series exists in the schema — `StudentProgressSnapshot` is overall-only): reuses the account's overall accuracy trend classification for every subject, with `confidence` scaling by that subject's own practice volume — a lightly-practiced subject's trend reads as low-confidence rather than being fabricated per-subject history.
+
+**Why**
+
+`docs/04_database.md` and `docs/05_API_Blueprint.md`'s Analytics design is a large, internally cross-referencing system (Modules 13-18 all read from the same 5 tables, several formulas reference values — like `avgTime`, rank, or per-subject history — that the schema doesn't actually store at that grain). Building it at all, per this session's explicit full-scope decision, means resolving these gaps concretely rather than leaving `TODO`s or guessing silently during implementation.
+
+**Implementation notes**
+
+* The aggregation writer (`analytics.service.ts`'s `triggerAnalyticsUpdate(studentId)`, pure math in `apps/api/src/rules/analytics-aggregation.rules.ts`) is fire-and-forget, called right after `test-attempt.service.ts`'s `evaluateClaimedAttempt()` transaction commits — not inside it, since analytics tolerates lag per the docs' own pipeline (`Test Submission → Evaluation → Ranking → Analytics Aggregation → Dashboard Read`).
+* Every module follows the established layered quartet (`repositories/` → `rules/` → `services/` → `controllers/` → `routes/` + `validators/`), with rules files composing across modules directly as pure functions (e.g. `recommendation.rules.ts` reuses `weakness.rules.ts`'s score functions and `intelligence.rules.ts`'s readiness formula) — no formula is duplicated.
+* `apps/api/test/analytics.test.ts` covers the aggregation writer's correctness against known submitted attempts, one happy-path test per module, an empty-state test, a pagination test, and a rank-gap test — pragmatic coverage given the ~35-endpoint surface, not exhaustive per-endpoint testing.
+* Revisit rank-dependent fields/endpoints (#5) once Phase 6 (Ranking) ships — activation is a one-file change in `rank.repository.ts`. Revisit the Module 14 dashboard integration (#6) as a deliberate, separate refactor if the existing Phase 2 dashboard should ever consume the new Recommendation Engine's `/recommendations/summary` instead of its own simple rule.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1155,6 +1202,7 @@ No major product or architecture decision should be implemented without first be
 | 1.1     | BR-037 (email+password auth override for Release 1 build), BR-038 (Release 1 MVP build sequencing) added. |
 | 1.2     | BR-039 (localStorage JWT storage, Phase 2), BR-040 (simple admin role check in place of the full Admin JWT audience system, Phase 3), BR-041 (Question Bank content authoring: seed script + minimal admin CRUD in place of the Phase 9 review workflow) added. |
 | 1.3     | BR-042 (Test Engine, Phase 4: minimal `QuestionVersion` + `AuditLog` tables added now rather than fully deferred to Phase 9, `StudentAnswer.markedForReview` added, background auto-submit sweeper implemented but left disabled on this infra in favor of a lazy check-on-read) added. |
+| 1.4     | BR-043 (Analytics, Phase 5: full documented system built — 5 pre-computed tables + 6 API modules; FK target/onDelete, weaknessScore name collision, rank-data-doesn't-exist-yet, Module 14 route collision, and several unspecified formula curves all resolved) added. |
 
 ---
 

@@ -110,6 +110,28 @@ export function findChapterTestAccuracyByStudent(studentId: string) {
   });
 }
 
+// Phase 5 (Analytics, BR-043): full read source for the aggregation
+// writer. Includes the pinned question -> topic -> chapter -> subject
+// hierarchy (needed to bucket StudentAnswers into per-subject/chapter/
+// topic accumulators) alongside each attempt's own aggregate fields
+// (score, timeTaken, studyPointsEarned, ...).
+export function findEvaluatedAttemptsForAnalytics(studentId: string) {
+  return prisma.testAttempt.findMany({
+    where: { studentId, status: "EVALUATED" },
+    include: {
+      attemptQuestions: {
+        include: {
+          question: {
+            include: { topic: { include: { chapter: { include: { subject: true } } } } },
+          },
+        },
+      },
+      studentAnswers: true,
+    },
+    orderBy: { submittedAt: "asc" },
+  });
+}
+
 // BR-001: Release 1 is CBSE-only, so scoping by board is unnecessary
 // complexity for now — just match the student's class.
 export function findFirstUnattemptedChapterTest(classLevel: number, studentId: string) {

@@ -15,6 +15,12 @@ import { adminQuestionRouter } from "./routes/admin-question.routes.js";
 import { testRouter } from "./routes/test.routes.js";
 import { adminTestRouter } from "./routes/admin-test.routes.js";
 import { testAttemptRouter } from "./routes/test-attempt.routes.js";
+import { analyticsRouter } from "./routes/analytics.routes.js";
+import { analyticsDashboardRouter } from "./routes/analytics-dashboard.routes.js";
+import { intelligenceRouter } from "./routes/intelligence.routes.js";
+import { weaknessRouter } from "./routes/weakness.routes.js";
+import { trendRouter } from "./routes/trend.routes.js";
+import { recommendationRouter } from "./routes/recommendation.routes.js";
 
 export function createApp() {
   const app = express();
@@ -39,6 +45,13 @@ export function createApp() {
   app.use("/api/v1/tests", testRouter);
   app.use("/api/v1/admin/tests", adminTestRouter);
   app.use("/api/v1/attempts", testAttemptRouter);
+  // Phase 5 (Analytics, BR-043)
+  app.use("/api/v1/analytics", analyticsRouter);
+  app.use("/api/v1/analytics-dashboard", analyticsDashboardRouter);
+  app.use("/api/v1/intelligence", intelligenceRouter);
+  app.use("/api/v1/weakness", weaknessRouter);
+  app.use("/api/v1/trends", trendRouter);
+  app.use("/api/v1/recommendations", recommendationRouter);
 
   app.use(errorHandler);
 

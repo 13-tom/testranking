@@ -42,6 +42,14 @@ model User {
   studentProfile StudentProfile?
   testAttempts   TestAttempt[]
 
+  // Phase 5: Analytics (BR-043) — FK'd to User.id, not StudentProfile.id,
+  // matching TestAttempt.studentId's existing FK target.
+  studentAnalytics  StudentAnalytics?
+  subjectAnalytics  StudentSubjectAnalytics[]
+  chapterAnalytics  StudentChapterAnalytics[]
+  topicAnalytics    StudentTopicAnalytics[]
+  progressSnapshots StudentProgressSnapshot[]
+
   @@map("users")
 }
 
@@ -120,6 +128,7 @@ model Subject {
 
   chapters     Chapter[]
   testSubjects TestSubject[]
+  subjectAnalytics StudentSubjectAnalytics[]
 
   @@unique([boardId, class, name])
   @@index([class])
@@ -142,6 +151,7 @@ model Chapter {
 
   topics       Topic[]
   testChapters TestChapter[]
+  chapterAnalytics StudentChapterAnalytics[]
 
   @@unique([subjectId, name])
   @@unique([subjectId, chapterNumber])
@@ -163,6 +173,7 @@ model Topic {
 
   questions  Question[]
   testTopics TestTopic[]
+  topicAnalytics StudentTopicAnalytics[]
 
   @@unique([chapterId, name])
   @@index([chapterId, isActive])
@@ -523,4 +534,132 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// --- Phase 5: Analytics (BR-043) ---
+// docs/04_database.md §16b-16f. All 5 tables are pre-computed/read-only
+// from the API's perspective — the sole writer is
+// analytics.service.ts's triggerAnalyticsUpdate(studentId), a full
+// idempotent recompute run fire-and-forget after each evaluated attempt
+// (apps/api/src/services/test-attempt.service.ts's evaluateClaimedAttempt).
+// FK target is User.id (not StudentProfile.id as literally listed in the
+// docs) per BR-043, matching TestAttempt.studentId's existing FK target —
+// and, also matching TestAttempt's onDelete: Cascade (not Restrict as
+// literally listed in the docs), since these rows are pure derived/
+// computed caches: deleting a User should clean up their analytics
+// automatically rather than being blocked by them.
+
+model StudentAnalytics {
+  id                String    @id @default(uuid())
+  studentId         String    @unique
+  student           User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  testsTaken        Int       @default(0)
+  testsCompleted    Int       @default(0)
+  questionsSolved   Int       @default(0)
+  correctAnswers    Int       @default(0)
+  incorrectAnswers  Int       @default(0)
+  accuracy          Float     @default(0)
+  averageScore      Float     @default(0)
+  averagePercentage Float     @default(0)
+  bestPercentage    Float     @default(0)
+  bestScore         Float     @default(0)
+  averageRank       Int? // null until Phase 6 (Ranking) exists — BR-043
+  bestRank          Int? // null until Phase 6 (Ranking) exists — BR-043
+  totalStudyTime    Int       @default(0)
+  lastTestDate      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("student_analytics")
+}
+
+model StudentSubjectAnalytics {
+  id                     String   @id @default(uuid())
+  studentId              String
+  student                User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId              String
+  subject                Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  attempts               Int      @default(0)
+  questionsSolved        Int      @default(0)
+  correctAnswers         Int      @default(0)
+  incorrectAnswers       Int      @default(0)
+  accuracy               Float    @default(0)
+  averageTimePerQuestion Float    @default(0) // BR-043: approximated as attempt.timeTaken / questionsInAttempt
+  bestScore              Float    @default(0)
+  averageScore           Float    @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([studentId, subjectId])
+  @@map("student_subject_analytics")
+}
+
+// weaknessScore here (= 100 - accuracy) is a distinct value from Module
+// 16's composite "weaknessScore" response field, which uses this column
+// only as one input (masteryPenalty) — never re-exposed under this name
+// in Module 16 responses. See BR-043.
+model StudentChapterAnalytics {
+  id                     String   @id @default(uuid())
+  studentId              String
+  student                User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  chapterId              String
+  chapter                Chapter  @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  attempts               Int      @default(0)
+  questionsSolved        Int      @default(0)
+  correctAnswers         Int      @default(0)
+  incorrectAnswers       Int      @default(0)
+  accuracy               Float    @default(0)
+  averageTimePerQuestion Float    @default(0)
+  weaknessScore          Float    @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([studentId, chapterId])
+  @@index([studentId, weaknessScore])
+  @@map("student_chapter_analytics")
+}
+
+model StudentTopicAnalytics {
+  id                     String   @id @default(uuid())
+  studentId              String
+  student                User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  topicId                String
+  topic                  Topic    @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  attempts               Int      @default(0)
+  questionsSolved        Int      @default(0)
+  correctAnswers         Int      @default(0)
+  incorrectAnswers       Int      @default(0)
+  accuracy               Float    @default(0)
+  averageTimePerQuestion Float    @default(0)
+  masteryScore           Float    @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([studentId, topicId])
+  @@index([studentId, masteryScore])
+  @@map("student_topic_analytics")
+}
+
+// Cumulative-as-of-date snapshot (not single-day stats) — BR-043. One row
+// per distinct calendar date the student has ever submitted an evaluated
+// attempt on; recomputed fully on every aggregation run. studyPoints is
+// cumulative sum of TestAttempt.studyPointsEarned as-of that date (not a
+// snapshot of StudentProfile.studyPoints, which has no historical ledger).
+model StudentProgressSnapshot {
+  id                String   @id @default(uuid())
+  studentId         String
+  student           User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date              DateTime // truncated to UTC day
+  rank              Int? // null until Phase 6 (Ranking) exists — BR-043
+  accuracy          Float    @default(0)
+  averageScore      Float    @default(0)
+  averagePercentage Float    @default(0)
+  studyPoints       Int      @default(0)
+  testsTaken        Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([studentId, date])
+  @@index([studentId, date])
+  @@map("student_progress_snapshots")
 }

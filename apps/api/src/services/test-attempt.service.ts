@@ -41,6 +41,7 @@ import type { PoolQuestion } from "../rules/test-selection.rules.js";
 import { buildOptionOrder, finalizeQuestionOrder, selectQuestionsForBlueprint } from "../rules/test-selection.rules.js";
 import { POINTS_PER_CORRECT_ANSWER, scoreQuestions } from "../rules/test-scoring.rules.js";
 import type { SaveAnswerInput, StartAttemptInput } from "../validators/test-engine.validators.js";
+import { triggerAnalyticsUpdate } from "./analytics.service.js";
 
 type TestWithScope = NonNullable<Awaited<ReturnType<typeof findTestById>>>;
 type AttemptWithRelations = NonNullable<Awaited<ReturnType<typeof findAttemptById>>>;
@@ -438,6 +439,14 @@ async function evaluateClaimedAttempt(attemptId: string, reason: "SUBMITTED" | "
     // to. When it's built, call updateLeaderboard(attempt) here, gated on
     // test.mode === 'RANKED' && test.rankingScope !== 'NONE'.
   });
+
+  // Phase 5 (Analytics, BR-043): fire-and-forget, outside the transaction
+  // — analytics tolerates lag (Test Submission -> Evaluation -> Ranking ->
+  // Analytics Aggregation -> Dashboard Read), unlike the score-write +
+  // Study Points credit + AuditLog trio above, which must be atomic.
+  void triggerAnalyticsUpdate(attempt.studentId).catch((err) =>
+    logger.error({ err, studentId: attempt.studentId }, "analytics aggregation failed"),
+  );
 
   const evaluated = await findAttemptById(attemptId);
   if (!evaluated) {
