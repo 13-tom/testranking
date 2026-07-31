@@ -1,4 +1,7 @@
 import type {
+  AnalyticsDashboardStrengths,
+  AnalyticsDashboardWeaknesses,
+  AnalyticsProgressResponseData,
   ApiResponse,
   AttemptResultResponseData,
   AttemptStateResponseData,
@@ -11,8 +14,11 @@ import type {
   SaveAnswerRequest,
   SaveAnswerResponseData,
   StartAttemptRequest,
+  StudentAnalyticsOverview,
   TestDetailResponseData,
   TestListResponseData,
+  TodayPlanResponseData,
+  TrendOverviewResponseData,
 } from "@board-ranking/shared";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
@@ -111,4 +117,28 @@ export function autoSubmitAttempt(token: string, attemptId: string): Promise<Api
 
 export function fetchAttemptResult(token: string, attemptId: string): Promise<ApiResponse<AttemptResultResponseData>> {
   return getJson<AttemptResultResponseData>(`/api/v1/attempts/${attemptId}/result`, token);
+}
+
+export function fetchAnalyticsOverview(token: string): Promise<ApiResponse<StudentAnalyticsOverview>> {
+  return getJson<StudentAnalyticsOverview>("/api/v1/analytics/overview", token);
+}
+
+export function fetchStrengths(token: string): Promise<ApiResponse<AnalyticsDashboardStrengths>> {
+  return getJson<AnalyticsDashboardStrengths>("/api/v1/analytics-dashboard/strengths", token);
+}
+
+export function fetchWeaknesses(token: string): Promise<ApiResponse<AnalyticsDashboardWeaknesses>> {
+  return getJson<AnalyticsDashboardWeaknesses>("/api/v1/analytics-dashboard/weaknesses", token);
+}
+
+export function fetchProgress(token: string): Promise<ApiResponse<AnalyticsProgressResponseData>> {
+  return getJson<AnalyticsProgressResponseData>("/api/v1/analytics/progress", token);
+}
+
+export function fetchTrendOverview(token: string): Promise<ApiResponse<TrendOverviewResponseData>> {
+  return getJson<TrendOverviewResponseData>("/api/v1/trends/overview", token);
+}
+
+export function fetchTodayRecommendations(token: string): Promise<ApiResponse<TodayPlanResponseData>> {
+  return getJson<TodayPlanResponseData>("/api/v1/recommendations/today", token);
 }

@@ -8,6 +8,7 @@ import { clsx } from "@/components/ui/clsx";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/tests", label: "Tests" },
+  { href: "/analytics", label: "Analytics" },
   { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
 ];
