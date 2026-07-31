@@ -340,8 +340,46 @@ async function main() {
     }
   }
 
+  // Seed one real, published Test so the frontend has something to take
+  // immediately after seeding — no manual curl needed. Bypasses the admin
+  // API (same as the rest of this script), so the pool-gate check is
+  // satisfied by hand: 10 questions at EASY:60/MEDIUM:30/HARD:10 requires
+  // 6 EASY + 3 MEDIUM + 1 HARD, comfortably within the seeded 15-question
+  // pool (10 EASY / 5 MEDIUM / 3 HARD across all chapters).
+  const SEED_TEST_NAME = "CBSE Class 10 Mathematics — Full Practice Test";
+  const existingTest = await prisma.test.findFirst({ where: { name: SEED_TEST_NAME } });
+  let testSeeded = false;
+  if (!existingTest) {
+    const admin = await prisma.user.upsert({
+      where: { email: "admin@boardranking.com" },
+      update: {},
+      create: { email: "admin@boardranking.com", passwordHash: "not-used-seed-only", role: "ADMIN" },
+    });
+
+    await prisma.test.create({
+      data: {
+        name: SEED_TEST_NAME,
+        description: "A full-length practice test covering all seeded Class 10 Mathematics chapters.",
+        boardId: board.id,
+        class: 10,
+        questionCount: 10,
+        difficultyDistribution: { EASY: 60, MEDIUM: 30, HARD: 10 },
+        duration: 30,
+        passingMarks: 4,
+        category: "SUBJECT",
+        mode: "PRACTICE",
+        status: "ACTIVE",
+        createdBy: admin.id,
+        testSubjects: { create: [{ subjectId: subject.id }] },
+      },
+    });
+    testSeeded = true;
+  }
+
   // eslint-disable-next-line no-console -- CLI script summary output, not debug scratch logging
-  console.log(`Seed complete: ${questionsCreated} question(s) created, ${questionsSkipped} already present.`);
+  console.log(
+    `Seed complete: ${questionsCreated} question(s) created, ${questionsSkipped} already present. Test ${testSeeded ? "created" : "already present"}.`,
+  );
 }
 
 main()

@@ -54,6 +54,18 @@ describe("Analytics (Phase 5)", () => {
     return attemptId;
   }
 
+  // The aggregation writer (triggerAnalyticsUpdate) is deliberately
+  // fire-and-forget after submission — it isn't guaranteed to have
+  // finished by the time the submit HTTP response returns. Poll instead
+  // of asserting immediately, so this test isn't racing the writer.
+  async function waitForTestsTaken(expected: number) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const res = await request(app).get("/api/v1/analytics/overview").set("Authorization", `Bearer ${studentToken}`);
+      if (res.body.data.testsTaken === expected) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
   beforeAll(async () => {
     const registerRes = await request(app).post("/api/v1/auth/register").send({ email: studentEmail, password: "hunter22", fullName: "AN Student", class: 10 });
     studentToken = registerRes.body.data.token as string;
@@ -115,6 +127,7 @@ describe("Analytics (Phase 5)", () => {
     // returns them, not tied to chapter index.
     await submitAttempt(testId, ["A", "B", null]);
     await submitAttempt(testId, ["A", "A", "A"]);
+    await waitForTestsTaken(2);
   }, 30000);
 
   afterAll(async () => {
