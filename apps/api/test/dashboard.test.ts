@@ -25,7 +25,9 @@ describe("Dashboard", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.profile.fullName).toBe("Dash Student");
-    expect(res.body.data.studyPoints).toBe(0);
+    // Phase 7 (Gamification, BR-045): registration awards a base 50-point
+    // bonus (no schoolId here, so the profile-completion bonus doesn't apply).
+    expect(res.body.data.studyPoints).toBe(50);
     expect(res.body.data.studyLevel).toBe(1);
     expect(res.body.data.studyStreak).toBe(0);
     expect(res.body.data.rank).toBeNull();

@@ -23,6 +23,7 @@ import { trendRouter } from "./routes/trend.routes.js";
 import { recommendationRouter } from "./routes/recommendation.routes.js";
 import { leaderboardRouter } from "./routes/leaderboard.routes.js";
 import { studentRankRouter } from "./routes/student-rank.routes.js";
+import { gamificationRouter } from "./routes/gamification.routes.js";
 
 export function createApp() {
   const app = express();
@@ -57,6 +58,8 @@ export function createApp() {
   // Phase 6 (Ranking, BR-029 through BR-036, BR-044)
   app.use("/api/v1/leaderboards", leaderboardRouter);
   app.use("/api/v1/students", studentRankRouter);
+  // Phase 7 (Gamification, BR-045)
+  app.use("/api/v1", gamificationRouter);
 
   app.use(errorHandler);
 

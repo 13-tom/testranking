@@ -56,6 +56,10 @@ model User {
   leaderboard   Leaderboard?
   rankSnapshots RankSnapshot[]
 
+  // Phase 7: Gamification (BR-045)
+  studentAchievements StudentAchievement[]
+  streakHistory       StudyStreakHistory[]
+
   @@map("users")
 }
 
@@ -602,6 +606,59 @@ model RankSnapshot {
   @@index([scope, scopeId, period, rankingVersion, rank])
   @@index([isPublished, computedAt])
   @@map("rank_snapshots")
+}
+
+// --- Phase 7: Gamification (BR-045) ---
+// docs/04_database.md §17-19, the lean MVP tables — not the much larger
+// Sprint 8.1-8.6 XP/Coin/Mission/Reward ledger system documented
+// elsewhere. "Badges" and "Achievements" are one concept here, matching
+// PRD Ch6 §13's simple framing ("Study Points unlock: Study Levels,
+// Badges, Progress").
+
+// Seed data (admin-managed conceptually; seeded for MVP like Question
+// Bank content — BR-041's precedent).
+model Achievement {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  title             String
+  description       String
+  icon              String
+  category          String
+  studyPointsReward Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  studentAchievements StudentAchievement[]
+
+  @@map("achievements")
+}
+
+// docs §18: many-to-many, earnedAt timestamp. FK target is User.id,
+// matching every other studentId FK in this schema.
+model StudentAchievement {
+  id            String      @id @default(uuid())
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  earnedAt      DateTime    @default(now())
+
+  @@unique([studentId, achievementId])
+  @@index([studentId])
+  @@map("student_achievements")
+}
+
+// docs §19: "used for streak calendar" — one row per day the student did
+// any study activity (any evaluated attempt, any test mode).
+model StudyStreakHistory {
+  id        String   @id @default(uuid())
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime // truncated to UTC day
+  completed Boolean  @default(true)
+
+  @@unique([studentId, date])
+  @@index([studentId, date])
+  @@map("study_streak_history")
 }
 
 // --- Phase 5: Analytics (BR-043) ---

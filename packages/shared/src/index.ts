@@ -12,3 +12,4 @@ export * from "./weakness.js";
 export * from "./trend.js";
 export * from "./recommendation.js";
 export * from "./ranking.js";
+export * from "./gamification.js";

@@ -43,6 +43,7 @@ import { POINTS_PER_CORRECT_ANSWER, scoreQuestions } from "../rules/test-scoring
 import type { SaveAnswerInput, StartAttemptInput } from "../validators/test-engine.validators.js";
 import { triggerAnalyticsUpdate } from "./analytics.service.js";
 import { triggerRankingForAttempt } from "./ranking-calculation.service.js";
+import { triggerGamificationUpdate } from "./gamification.service.js";
 
 type TestWithScope = NonNullable<Awaited<ReturnType<typeof findTestById>>>;
 type AttemptWithRelations = NonNullable<Awaited<ReturnType<typeof findAttemptById>>>;
@@ -393,7 +394,12 @@ async function evaluateClaimedAttempt(attemptId: string, reason: "SUBMITTED" | "
   const result = scoreQuestions(scoredQuestions, answers, test.positiveMarks, test.negativeMarks);
   const timeTaken = Math.round((Date.now() - attempt.startedAt.getTime()) / 1000);
   const studyPointsEarned = result.correctCount * POINTS_PER_CORRECT_ANSWER;
-  const creditStudyPoints = test.mode === "RANKED";
+  // BR-045: Study Points reward learning engagement, not competitive
+  // standing (BR-032 already separates the two) — PRACTICE-mode
+  // submissions earn points too now. Phase 4 originally gated this to
+  // RANKED only; that restriction was never recorded as a BR, so this
+  // corrects an undocumented deviation rather than changing an approved
+  // decision.
 
   await prisma.$transaction(async (tx) => {
     for (const pq of result.perQuestion) {
@@ -419,7 +425,7 @@ async function evaluateClaimedAttempt(attemptId: string, reason: "SUBMITTED" | "
       },
     });
 
-    if (creditStudyPoints && studyPointsEarned > 0) {
+    if (studyPointsEarned > 0) {
       await tx.studentProfile.update({
         where: { userId: attempt.studentId },
         data: { studyPoints: { increment: studyPointsEarned } },
@@ -438,20 +444,23 @@ async function evaluateClaimedAttempt(attemptId: string, reason: "SUBMITTED" | "
 
   });
 
-  // Phase 6 (Ranking, BR-034/BR-044): fire-and-forget, outside this
-  // transaction — ranking-calculation.service.ts opens its own transaction
-  // once the counts it needs are computed, and gates internally on
-  // test.mode === 'RANKED' && test.rankingScope !== 'NONE'. Runs before the
-  // analytics trigger so a student's rank is available by the time
-  // analytics aggregation reads it (Test Submission -> Evaluation ->
-  // Ranking -> Analytics Aggregation -> Dashboard Read).
-  void triggerRankingForAttempt(attemptId).catch((err) => logger.error({ err, attemptId }, "ranking calculation failed"));
-
-  // Phase 5 (Analytics, BR-043): fire-and-forget, outside the transaction
-  // — analytics tolerates lag, unlike the score-write + Study Points
-  // credit + AuditLog trio above, which must be atomic.
-  void triggerAnalyticsUpdate(attempt.studentId).catch((err) =>
-    logger.error({ err, studentId: attempt.studentId }, "analytics aggregation failed"),
+  // Phase 6 (Ranking, BR-034/BR-044) + Phase 5 (Analytics, BR-043):
+  // fire-and-forget, outside this transaction — each opens its own
+  // transaction once its own inputs are computed, and analytics tolerates
+  // lag same as ranking does. Phase 7 (Gamification, BR-045) is chained
+  // after both settle, since it reads the just-updated StudentAnalytics
+  // row and the just-computed rank (Test Submission -> Evaluation ->
+  // Ranking -> Analytics Aggregation -> Gamification Update -> Dashboard
+  // Read).
+  void Promise.allSettled([
+    triggerRankingForAttempt(attemptId).catch((err) => logger.error({ err, attemptId }, "ranking calculation failed")),
+    triggerAnalyticsUpdate(attempt.studentId).catch((err) =>
+      logger.error({ err, studentId: attempt.studentId }, "analytics aggregation failed"),
+    ),
+  ]).then(() =>
+    triggerGamificationUpdate(attempt.studentId).catch((err) =>
+      logger.error({ err, studentId: attempt.studentId }, "gamification update failed"),
+    ),
   );
 
   const evaluated = await findAttemptById(attemptId);

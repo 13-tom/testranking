@@ -1189,6 +1189,91 @@ Approved
 
 ---
 
+## BR-045
+
+**Category**
+
+Product / Architecture — Gamification (Phase 7 implementation)
+
+**Decision**
+
+Phase 7 builds the lean MVP gamification system documented in
+`docs/04_database.md` §17-19 (`Achievement`, `StudentAchievement`,
+`StudyStreakHistory`) plus the pre-existing `StudentProfile` fields
+(`studyPoints`, `studyLevel`, `studyStreak`, `longestStreak`,
+`profileCompletion`) from Phase 0 — **not** the much larger documented
+Sprint 8.1-8.6 system (`XpTransaction`/`StudentLevel`/`LevelDefinition`,
+`CoinTransaction`/`StudentWallet`, `BadgeDefinition`/
+`StudentAchievementProgress`, `MissionDefinition`/`StudentMission`,
+`RewardDefinition`/`RewardClaim`). "Badges" and "Achievements" are one
+concept here, matching PRD Ch6 §13's simple framing ("Study Points
+unlock: Study Levels, Badges, Progress") — the roadmap's Phase 7 bullet
+list (Study Points, Study Levels, Achievements, Badges, Study Streaks,
+Daily Goals, Profile Completion Rewards, Milestones) matches this simple
+model, not the transaction-ledger one. This mirrors Phase 6's precedent
+of building the documented MVP subset, not the full sprint-numbered
+system.
+
+1. **Milestones is not rebuilt** — Phase 5's `/trends/milestones`
+   (`evaluateMilestones`, `apps/api/src/rules/trend.rules.ts`) already
+   covers all 12 documented milestones including `STREAK_7/14/30`. Those
+   were permanently unachievable before this phase because nothing ever
+   incremented `StudentProfile.studyStreak`; Phase 7 makes them real by
+   making streak tracking real, not by building a new milestones feature.
+2. **PRACTICE-mode submissions now earn Study Points.** Phase 4
+   (Test Engine) gated Study Points credit to `test.mode === "RANKED"`
+   only — an implementation choice never recorded as a BR, discovered
+   while building this phase. BR-032 already establishes that Study
+   Points and ranking are separate concerns; gating points to RANKED mode
+   only discouraged practice, the opposite of the platform's stated
+   mission (BR-025). This corrects that undocumented Phase 4 behavior
+   rather than preserving it.
+3. **Study Level has no persisted ledger or reference table.** Level is
+   computed from `StudentProfile.studyPoints` via a pure function
+   (`computeStudyLevel`, `apps/api/src/rules/gamification.rules.ts`)
+   reusing docs §16g's exact cumulative curve
+   (`xpRequired(n) = 25n(n+1) - 50`, capped at level 100) without
+   building the Sprint 8.1 `XpTransaction`/`LevelDefinition` audit-ledger
+   architecture — recomputed and persisted to `StudentProfile.studyLevel`
+   atomically whenever `studyPoints` changes, same pattern as every other
+   derived `StudentProfile` field.
+4. **Study Points sources**: registration (+50, once), profile completion
+   (+50, once, folded into `PROFILE_COMPLETE`'s achievement reward),
+   correct answers (+10 each, all modes per #2), test completion (+5
+   flat, all modes), and each achievement's own `studyPointsReward` on
+   unlock. This satisfies PRD Ch6 §13's five listed sources
+   (Registration, Profile Completion, Completing Tests, Correct Answers,
+   Achievements) without inventing new ones.
+5. **`profileCompletion` formula, given no profile-edit endpoint exists
+   yet** (out of Phase 7 scope — a pre-existing gap, not something this
+   phase introduces): 70% base (the always-present registration fields)
+   + 30% if `schoolId` was provided at registration. 100% is reachable
+   today by registering with a school; `profileImage` isn't part of the
+   formula since nothing anywhere can set it yet. Revisit once a profile
+   edit flow exists.
+6. **Achievement catalogue** is a lean, self-contained 10-item starter set
+   (`ACHIEVEMENT_DEFINITIONS`), not the full Sprint 8.3 badge catalogue —
+   one achievement per category (PROFILE/TESTS/ACCURACY/STREAK/
+   STUDY_POINTS/RANK), reusing round thresholds from the documented
+   badge/milestone lists where they already existed (`STREAK_7/30`,
+   `RANK_TOP_100`, `ACCURACY_90`) so they stay consistent with Phase 5's
+   milestones. Seeded by code in `prisma/seed.ts`, matching BR-041's
+   seed-script-as-content-authoring precedent — no admin CRUD endpoint
+   for achievements exists (there's nothing to author; the catalogue is
+   fixed).
+7. **Backend only this pass** — no gamification frontend page, matching
+   how Phase 4/5/6 shipped backend first. `studyPoints`/`studyLevel`/
+   `studyStreak` already surface through existing dashboard/profile
+   widgets from Phase 1/2, so those come alive with real data immediately
+   without new frontend work; the new `GET /achievements` and
+   `GET /streak` reads are available for a future dedicated page.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1228,6 +1313,7 @@ No major product or architecture decision should be implemented without first be
 | 1.3     | BR-042 (Test Engine, Phase 4: minimal `QuestionVersion` + `AuditLog` tables added now rather than fully deferred to Phase 9, `StudentAnswer.markedForReview` added, background auto-submit sweeper implemented but left disabled on this infra in favor of a lazy check-on-read) added. |
 | 1.4     | BR-043 (Analytics, Phase 5: full documented system built — 5 pre-computed tables + 6 API modules; FK target/onDelete, weaknessScore name collision, rank-data-doesn't-exist-yet, Module 14 route collision, and several unspecified formula curves all resolved) added. |
 | 1.5     | BR-044 (Ranking, Phase 6: Sprint 6.1 read infrastructure + Sprint 6.2 calculation engine built per BR-029 through BR-036, Sprint 6.3+ deferred; cascading rankingScope, testId population, nullable-schoolId handling, rank.repository.ts activation, CursorPage reuse, and FK target all resolved) added. |
+| 1.6     | BR-045 (Gamification, Phase 7: lean MVP system per docs/04_database.md §17-19 built, the larger Sprint 8.1-8.6 XP/Coin/Mission/Reward ledger system deferred; Milestones reuse from Phase 5, PRACTICE-mode Study Points gate removed, level formula without a persisted ledger, Study Points sources, profileCompletion formula, achievement catalogue, and backend-only scoping all resolved) added. |
 
 ---
 

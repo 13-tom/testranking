@@ -22,12 +22,12 @@ Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
 AI Features, Community, Arena/Competitive features, Marketplace, Mobile
 Apps) are documented but deferred.
 
-**Progress**: Phases 0–6 (Foundation, Authentication, Student Dashboard,
-Question Bank, Test Engine, Analytics, Ranking System) are built and
-tested locally; Phases 0–3 are deployed live (Vercel + Render + Neon +
-Upstash), Phases 4–6 pending their next deploy. Phase 7 (Gamification) is
-next. See `docs/12_Product_Decisions.md` BR-037 through BR-044 for every
-deviation recorded so far.
+**Progress**: Phases 0–7 (Foundation, Authentication, Student Dashboard,
+Question Bank, Test Engine, Analytics, Ranking System, core Study Points/
+Gamification) are built and tested locally; Phases 0–3 are deployed live
+(Vercel + Render + Neon + Upstash), Phases 4–7 pending their next deploy.
+Phase 8 (Admin Panel) is next. See `docs/12_Product_Decisions.md` BR-037
+through BR-045 for every deviation recorded so far.
 
 **Known deviations from the docs**: Release 1 auth in this build is email +
 password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as
@@ -42,6 +42,13 @@ Ranking design — Sprint 6.3+ (Redis caching, period/cron leaderboards,
 historical movement/timeline, `/leaderboards/me`+`/top`+`/nearby`) is
 deferred, and `Test.rankingScope` cascades downward (INDIA also updates
 STATE/DISTRICT/SCHOOL) rather than being single-scope — see BR-044.
+Gamification (Phase 7) builds the lean MVP system (Achievement/
+StudentAchievement/StudyStreakHistory + the existing StudentProfile
+fields), not the much larger documented Sprint 8.1-8.6 XP/Coin/Mission/
+Reward ledger system; Study Points now credit on PRACTICE-mode
+submissions too (Phase 4's undocumented RANKED-only gate is corrected);
+Study Level is computed on the fly, not a persisted XP ledger — see
+BR-045.
 
 ## Folder structure
 

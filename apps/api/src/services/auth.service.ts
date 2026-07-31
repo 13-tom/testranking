@@ -8,6 +8,7 @@ import {
   findUserById,
   touchLastLogin,
 } from "../repositories/user.repository.js";
+import { awardRegistrationBonuses } from "./gamification.service.js";
 import type { LoginInput, RegisterInput } from "../validators/auth.validators.js";
 
 const SALT_ROUNDS = 10;
@@ -20,8 +21,16 @@ export async function registerStudent(input: RegisterInput): Promise<AuthRespons
 
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
   const user = await createStudentUser(input, passwordHash);
-  const studentProfile = user.studentProfile;
+  if (!user.studentProfile) {
+    throw new Error("Student profile was not created alongside the user");
+  }
 
+  // BR-045: awarded synchronously (not fire-and-forget) — a new student's
+  // opening Study Points balance and profile completion should already be
+  // correct on their very first dashboard read.
+  await awardRegistrationBonuses(user.id, !!user.studentProfile.schoolId);
+  const withBonuses = await findUserById(user.id);
+  const studentProfile = withBonuses?.studentProfile;
   if (!studentProfile) {
     throw new Error("Student profile was not created alongside the user");
   }

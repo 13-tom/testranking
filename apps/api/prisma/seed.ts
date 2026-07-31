@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { buildReferenceCode, evaluatePublishGate } from "../src/rules/question-bank.rules.js";
+import { ACHIEVEMENT_DEFINITIONS } from "../src/rules/gamification.rules.js";
 
 const prisma = new PrismaClient();
 
@@ -792,6 +793,18 @@ async function main() {
         data: { ...schoolSeed, board: "CBSE", country: "India", postalCode: "110001" },
       });
     }
+  }
+
+  // Phase 7 (Gamification, BR-045): the lean achievement catalogue lives
+  // as code in gamification.rules.ts (ACHIEVEMENT_DEFINITIONS) and is
+  // upserted here by code — matching Question Bank's admin-CRUD-as-seed
+  // precedent (BR-041), not a separate admin-authoring endpoint.
+  for (const def of ACHIEVEMENT_DEFINITIONS) {
+    await prisma.achievement.upsert({
+      where: { code: def.code },
+      update: { title: def.title, description: def.description, icon: def.icon, category: def.category, studyPointsReward: def.studyPointsReward },
+      create: { ...def },
+    });
   }
 
   let questionsCreated = 0;
