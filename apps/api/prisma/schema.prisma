@@ -50,6 +50,12 @@ model User {
   topicAnalytics    StudentTopicAnalytics[]
   progressSnapshots StudentProgressSnapshot[]
 
+  // Phase 6: Ranking (BR-044) — FK'd to User.id, matching the Phase 5
+  // Analytics convention above, not the docs' looser "FK -> StudentProfile"
+  // phrasing.
+  leaderboard   Leaderboard?
+  rankSnapshots RankSnapshot[]
+
   @@map("users")
 }
 
@@ -126,8 +132,8 @@ model Subject {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  chapters     Chapter[]
-  testSubjects TestSubject[]
+  chapters         Chapter[]
+  testSubjects     TestSubject[]
   subjectAnalytics StudentSubjectAnalytics[]
 
   @@unique([boardId, class, name])
@@ -149,8 +155,8 @@ model Chapter {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  topics       Topic[]
-  testChapters TestChapter[]
+  topics           Topic[]
+  testChapters     TestChapter[]
   chapterAnalytics StudentChapterAnalytics[]
 
   @@unique([subjectId, name])
@@ -171,8 +177,8 @@ model Topic {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  questions  Question[]
-  testTopics TestTopic[]
+  questions      Question[]
+  testTopics     TestTopic[]
   topicAnalytics StudentTopicAnalytics[]
 
   @@unique([chapterId, name])
@@ -382,10 +388,11 @@ model Test {
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 
-  testSubjects TestSubject[]
-  testChapters TestChapter[]
-  testTopics   TestTopic[]
-  attempts     TestAttempt[]
+  testSubjects  TestSubject[]
+  testChapters  TestChapter[]
+  testTopics    TestTopic[]
+  attempts      TestAttempt[]
+  rankSnapshots RankSnapshot[]
 
   @@index([status, isActive])
   @@index([boardId, class])
@@ -534,6 +541,67 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// --- Phase 6: Ranking System (BR-029 through BR-036, BR-044) ---
+// docs/04_database.md §16/§16a. Written exclusively by
+// ranking-calculation.service.ts's triggerRankingForAttempt(attemptId),
+// fire-and-forget after each evaluated ranked-mode attempt (mirroring the
+// Phase 5 Analytics writer pattern above). FK target is User.id, matching
+// every existing studentId FK in this schema (BR-044 reconciles the docs'
+// looser "FK -> StudentProfile" phrasing).
+
+// ALL_TIME rank cache only, one row per student. The four rank columns are
+// FROZEN (BR-029) — future scopes (CITY/FRIENDS/CUSTOM) must never add new
+// columns here; they read from RankSnapshot instead.
+model Leaderboard {
+  id           String   @id @default(uuid())
+  studentId    String   @unique
+  student      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  period       String   @default("ALL_TIME")
+  schoolRank   Int?
+  districtRank Int?
+  stateRank    Int?
+  indiaRank    Int?
+  studyPoints  Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@index([schoolRank])
+  @@index([districtRank])
+  @@index([stateRank])
+  @@index([indiaRank])
+  @@index([studyPoints])
+  @@map("leaderboard")
+}
+
+// The immutable historical audit trail (BR-031). One row per (studentId,
+// scope, scopeId, period, rankingVersion) tuple, never updated. scope/
+// scopeId are open strings (not enums), by design (BR-029), so future
+// scope types never require a migration. scopeId is always sourced from
+// the canonical School columns at calculation time (BR-030), never from
+// caller input.
+model RankSnapshot {
+  id             String    @id @default(uuid())
+  studentId      String
+  student        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scope          String
+  scopeId        String
+  rank           Int
+  totalStudents  Int       @default(0)
+  studyPoints    Int
+  period         String    @default("ALL_TIME")
+  academicYear   String
+  rankingVersion Int       @default(1)
+  testId         String?
+  test           Test?     @relation(fields: [testId], references: [id], onDelete: SetNull)
+  isPublished    Boolean   @default(false)
+  computedAt     DateTime  @default(now())
+  publishedAt    DateTime?
+
+  @@index([studentId, scope, period, computedAt])
+  @@index([scope, scopeId, period, rankingVersion, rank])
+  @@index([isPublished, computedAt])
+  @@map("rank_snapshots")
 }
 
 // --- Phase 5: Analytics (BR-043) ---

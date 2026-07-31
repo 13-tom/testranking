@@ -3,6 +3,23 @@ import { buildReferenceCode, evaluatePublishGate } from "../src/rules/question-b
 
 const prisma = new PrismaClient();
 
+// Phase 6 (Ranking, BR-044): registration accepts an optional schoolId
+// (apps/api/src/validators/auth.validators.ts), but no frontend school
+// picker exists yet — these two schools exist so a manual walkthrough or
+// test can pass a real schoolId and exercise SCHOOL/DISTRICT/STATE scope
+// ranking, not just NATIONAL.
+type SchoolSeed = {
+  schoolName: string;
+  city: string;
+  district: string;
+  state: string;
+};
+
+const SCHOOLS: SchoolSeed[] = [
+  { schoolName: "Delhi Public School, Rohini", city: "Delhi", district: "North West Delhi", state: "Delhi" },
+  { schoolName: "Delhi Public School, Andheri", city: "Mumbai", district: "Mumbai Suburban", state: "Maharashtra" },
+];
+
 type OptionSeed = {
   optionKey: "A" | "B" | "C" | "D";
   optionText: string;
@@ -768,6 +785,15 @@ async function main() {
     create: { email: "admin@boardranking.com", passwordHash: "not-used-seed-only", role: "ADMIN" },
   });
 
+  for (const schoolSeed of SCHOOLS) {
+    const existingSchool = await prisma.school.findFirst({ where: { schoolName: schoolSeed.schoolName } });
+    if (!existingSchool) {
+      await prisma.school.create({
+        data: { ...schoolSeed, board: "CBSE", country: "India", postalCode: "110001" },
+      });
+    }
+  }
+
   let questionsCreated = 0;
   let questionsSkipped = 0;
   let testsCreated = 0;
@@ -865,29 +891,60 @@ async function main() {
     // entry), so the gate always passes without over/under-provisioning.
     const testName = `CBSE Class ${subjectSeed.class} ${subjectSeed.subjectName} — Full Practice Test`;
     const existingTest = await prisma.test.findFirst({ where: { name: testName } });
-    if (existingTest) {
+    if (!existingTest) {
+      await prisma.test.create({
+        data: {
+          name: testName,
+          description: `A full-length practice test covering all seeded Class ${subjectSeed.class} ${subjectSeed.subjectName} chapters.`,
+          boardId: board.id,
+          class: subjectSeed.class,
+          questionCount: 10,
+          difficultyDistribution: subjectSeed.testDifficultyDistribution,
+          duration: 30,
+          passingMarks: 4,
+          category: "SUBJECT",
+          mode: "PRACTICE",
+          status: "ACTIVE",
+          createdBy: admin.id,
+          testSubjects: { create: [{ subjectId: subject.id }] },
+        },
+      });
+      testsCreated += 1;
+    } else {
       testsSkipped += 1;
-      continue;
     }
 
-    await prisma.test.create({
-      data: {
-        name: testName,
-        description: `A full-length practice test covering all seeded Class ${subjectSeed.class} ${subjectSeed.subjectName} chapters.`,
-        boardId: board.id,
-        class: subjectSeed.class,
-        questionCount: 10,
-        difficultyDistribution: subjectSeed.testDifficultyDistribution,
-        duration: 30,
-        passingMarks: 4,
-        category: "SUBJECT",
-        mode: "PRACTICE",
-        status: "ACTIVE",
-        createdBy: admin.id,
-        testSubjects: { create: [{ subjectId: subject.id }] },
-      },
-    });
-    testsCreated += 1;
+    // Phase 6 (Ranking, BR-044): a second, RANKED-mode test per class so
+    // ranking is exercisable immediately after seeding, alongside the
+    // PRACTICE test above (Chapter 6 MVP: "Practice Mode does not affect
+    // rankings"). rankingScope INDIA cascades to SCHOOL/DISTRICT/STATE too
+    // (BR-044), so one submission populates all four Leaderboard columns
+    // for students who have a schoolId set.
+    const rankedTestName = `CBSE Class ${subjectSeed.class} ${subjectSeed.subjectName} — Ranked Mock Test`;
+    const existingRankedTest = await prisma.test.findFirst({ where: { name: rankedTestName } });
+    if (!existingRankedTest) {
+      await prisma.test.create({
+        data: {
+          name: rankedTestName,
+          description: `A ranked mock test covering all seeded Class ${subjectSeed.class} ${subjectSeed.subjectName} chapters. Counts toward School/District/State/India rankings.`,
+          boardId: board.id,
+          class: subjectSeed.class,
+          questionCount: 10,
+          difficultyDistribution: subjectSeed.testDifficultyDistribution,
+          duration: 30,
+          passingMarks: 4,
+          category: "SUBJECT",
+          mode: "RANKED",
+          rankingScope: "INDIA",
+          status: "ACTIVE",
+          createdBy: admin.id,
+          testSubjects: { create: [{ subjectId: subject.id }] },
+        },
+      });
+      testsCreated += 1;
+    } else {
+      testsSkipped += 1;
+    }
   }
 
   // eslint-disable-next-line no-console -- CLI script summary output, not debug scratch logging

@@ -22,12 +22,12 @@ Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
 AI Features, Community, Arena/Competitive features, Marketplace, Mobile
 Apps) are documented but deferred.
 
-**Progress**: Phases 0–5 (Foundation, Authentication, Student Dashboard,
-Question Bank, Test Engine, Analytics) are built and tested locally;
-Phases 0–3 are deployed live (Vercel + Render + Neon + Upstash), Phases 4–5
-pending their next deploy. Phase 6 (Ranking System) is next. See
-`docs/12_Product_Decisions.md` BR-037 through BR-043 for every deviation
-recorded so far.
+**Progress**: Phases 0–6 (Foundation, Authentication, Student Dashboard,
+Question Bank, Test Engine, Analytics, Ranking System) are built and
+tested locally; Phases 0–3 are deployed live (Vercel + Render + Neon +
+Upstash), Phases 4–6 pending their next deploy. Phase 7 (Gamification) is
+next. See `docs/12_Product_Decisions.md` BR-037 through BR-044 for every
+deviation recorded so far.
 
 **Known deviations from the docs**: Release 1 auth in this build is email +
 password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as
@@ -36,7 +36,12 @@ Admin routes are gated by a simple `role === "ADMIN"` check reusing the
 student JWT, not the full Admin JWT audience/RBAC system — see BR-040.
 Question Bank content authoring (seed script + minimal admin CRUD) stands
 in for the Phase 9 Admin Panel's review workflow until that phase is
-built — see BR-041.
+built — see BR-041. Ranking (Phase 6) builds only Sprint 6.1 (read
+infrastructure) + Sprint 6.2 (calculation engine) of the documented
+Ranking design — Sprint 6.3+ (Redis caching, period/cron leaderboards,
+historical movement/timeline, `/leaderboards/me`+`/top`+`/nearby`) is
+deferred, and `Test.rankingScope` cascades downward (INDIA also updates
+STATE/DISTRICT/SCHOOL) rather than being single-scope — see BR-044.
 
 ## Folder structure
 

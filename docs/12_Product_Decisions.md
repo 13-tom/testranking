@@ -1165,6 +1165,30 @@ Approved
 
 ---
 
+## BR-044
+
+**Category**
+
+Product / Architecture — Ranking System (Phase 6 implementation)
+
+**Decision**
+
+Phase 6 implements the Sprint 6.1 read infrastructure (`Leaderboard`/`RankSnapshot` schema, the 5 frozen read endpoints) and the Sprint 6.2 calculation engine (BR-029 through BR-036) exactly as those already-approved decisions specify. Sprint 6.3+ (Redis leaderboard caching, period/cron leaderboards, historical movement/timeline endpoints, `/leaderboards/me`+`/top`+`/nearby`, CITY/FRIENDS/CUSTOM scopes) is explicitly deferred — each of those pieces is labeled a later sprint in `docs/05_API_Blueprint.md` Module 7/7B itself, so deferring them is following the existing plan, not cutting scope from it. This entry resolves the points BR-029 through BR-036 left as implementation-time judgment calls, and reverses one piece of this session's own earlier (pre-implementation) guidance now that the schema's actual shape is visible.
+
+1. **`Test.rankingScope` cascades downward, it is not single-scope.** Earlier in this session, before any of BR-029 through BR-036 existed in this doc, a single-scope-only interpretation was recommended as a simplification. Implementing against the real `Leaderboard` schema (four simultaneous rank columns per student) and the real seed data (one shared test per class, no school-specific tests, no admin UI to create them) makes clear that single-scope would leave 3 of 4 Leaderboard columns permanently null for every student — a materially worse product outcome for no correctness benefit. Cascading (`INDIA` computes NATIONAL+STATE+DISTRICT+SCHOOL; `STATE` computes STATE+DISTRICT+SCHOOL; `DISTRICT` computes DISTRICT+SCHOOL; `SCHOOL` computes SCHOOL only) is the design actually implemented, in `resolveApplicableScopes()` (`apps/api/src/rules/ranking.rules.ts`).
+2. **`RankSnapshot.testId` is populated on every Sprint 6.2 calculation**, not left null-until-6.3+ as `docs/04_database.md` §16a's evolution-path note reads in isolation — BR-033's own text ("Per-test scope: the student's rank among all students who ever completed the same specific test") already establishes this for MVP; this entry just makes the reconciliation explicit rather than leaving the two docs looking contradictory.
+3. **Nullable `StudentProfile.schoolId`**: a student with no school on file gets `schoolRank`/`districtRank`/`stateRank` left `null` forever (only `indiaRank` populates, since NATIONAL never needs a school). None of BR-029 through BR-036 address this — the schema has always allowed a schoolless student, and Phase 6 has to decide what happens to them rather than crash or silently invent a scope.
+4. **`rank.repository.ts` activation** (`getCurrentRank`/`getTotalStudents`, consumed by Modules 14/17/18 since Phase 5): now reads the student's NATIONAL/ALL_TIME `Leaderboard.indiaRank` and the latest published NATIONAL/ALL_TIME `RankSnapshot.totalStudents` — "rank" in those existing call sites means the PRD's Overall Platform Rank, the one scope every student has regardless of school. No other Phase 5 file changed; this is the one-file activation BR-043 already designed for.
+5. **`CursorPage<T>` reused, not the API blueprint's literal `{limit, hasMore, nextCursor}` envelope** — `LeaderboardResponseData = CursorPage<LeaderboardEntry> & { totalStudents: number }`, matching every other cursor-paginated DTO already in `packages/shared` (analytics-dashboard, recommendation, weakness) rather than introducing a second, divergent pagination shape for one module.
+6. **`studentId` FKs on `Leaderboard`/`RankSnapshot` target `User.id`**, not `StudentProfile` as the docs' prose literally says — matching every existing `studentId` FK in this schema (`TestAttempt`, all 5 Phase 5 Analytics tables), per the same reconciliation BR-043 already made for its own tables.
+7. **StudentAnalytics.averageRank/bestRank stay unpopulated** — wiring a student's full rank history into the Analytics aggregation writer would require linking `RankSnapshot` rows back to individual attempts, which the roadmap's Phase 6 deliverable ("Ranking system operational": School/District/State/India Rank, Leaderboard, Rank History) doesn't ask for. `rank.repository.ts`'s activation (#4) already lights up the current-rank fields Modules 14/17/18 actually use; the two Analytics-table columns remain a Sprint 6.3+ item, same as they were under BR-043.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1203,6 +1227,7 @@ No major product or architecture decision should be implemented without first be
 | 1.2     | BR-039 (localStorage JWT storage, Phase 2), BR-040 (simple admin role check in place of the full Admin JWT audience system, Phase 3), BR-041 (Question Bank content authoring: seed script + minimal admin CRUD in place of the Phase 9 review workflow) added. |
 | 1.3     | BR-042 (Test Engine, Phase 4: minimal `QuestionVersion` + `AuditLog` tables added now rather than fully deferred to Phase 9, `StudentAnswer.markedForReview` added, background auto-submit sweeper implemented but left disabled on this infra in favor of a lazy check-on-read) added. |
 | 1.4     | BR-043 (Analytics, Phase 5: full documented system built — 5 pre-computed tables + 6 API modules; FK target/onDelete, weaknessScore name collision, rank-data-doesn't-exist-yet, Module 14 route collision, and several unspecified formula curves all resolved) added. |
+| 1.5     | BR-044 (Ranking, Phase 6: Sprint 6.1 read infrastructure + Sprint 6.2 calculation engine built per BR-029 through BR-036, Sprint 6.3+ deferred; cascading rankingScope, testId population, nullable-schoolId handling, rank.repository.ts activation, CursorPage reuse, and FK target all resolved) added. |
 
 ---
 

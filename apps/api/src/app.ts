@@ -21,6 +21,8 @@ import { intelligenceRouter } from "./routes/intelligence.routes.js";
 import { weaknessRouter } from "./routes/weakness.routes.js";
 import { trendRouter } from "./routes/trend.routes.js";
 import { recommendationRouter } from "./routes/recommendation.routes.js";
+import { leaderboardRouter } from "./routes/leaderboard.routes.js";
+import { studentRankRouter } from "./routes/student-rank.routes.js";
 
 export function createApp() {
   const app = express();
@@ -52,6 +54,9 @@ export function createApp() {
   app.use("/api/v1/weakness", weaknessRouter);
   app.use("/api/v1/trends", trendRouter);
   app.use("/api/v1/recommendations", recommendationRouter);
+  // Phase 6 (Ranking, BR-029 through BR-036, BR-044)
+  app.use("/api/v1/leaderboards", leaderboardRouter);
+  app.use("/api/v1/students", studentRankRouter);
 
   app.use(errorHandler);
 

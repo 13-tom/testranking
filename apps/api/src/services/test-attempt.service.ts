@@ -42,6 +42,7 @@ import { buildOptionOrder, finalizeQuestionOrder, selectQuestionsForBlueprint } 
 import { POINTS_PER_CORRECT_ANSWER, scoreQuestions } from "../rules/test-scoring.rules.js";
 import type { SaveAnswerInput, StartAttemptInput } from "../validators/test-engine.validators.js";
 import { triggerAnalyticsUpdate } from "./analytics.service.js";
+import { triggerRankingForAttempt } from "./ranking-calculation.service.js";
 
 type TestWithScope = NonNullable<Awaited<ReturnType<typeof findTestById>>>;
 type AttemptWithRelations = NonNullable<Awaited<ReturnType<typeof findAttemptById>>>;
@@ -435,15 +436,20 @@ async function evaluateClaimedAttempt(attemptId: string, reason: "SUBMITTED" | "
       },
     });
 
-    // Phase 6 (Ranking) doesn't exist yet — no Leaderboard table to write
-    // to. When it's built, call updateLeaderboard(attempt) here, gated on
-    // test.mode === 'RANKED' && test.rankingScope !== 'NONE'.
   });
 
+  // Phase 6 (Ranking, BR-034/BR-044): fire-and-forget, outside this
+  // transaction — ranking-calculation.service.ts opens its own transaction
+  // once the counts it needs are computed, and gates internally on
+  // test.mode === 'RANKED' && test.rankingScope !== 'NONE'. Runs before the
+  // analytics trigger so a student's rank is available by the time
+  // analytics aggregation reads it (Test Submission -> Evaluation ->
+  // Ranking -> Analytics Aggregation -> Dashboard Read).
+  void triggerRankingForAttempt(attemptId).catch((err) => logger.error({ err, attemptId }, "ranking calculation failed"));
+
   // Phase 5 (Analytics, BR-043): fire-and-forget, outside the transaction
-  // — analytics tolerates lag (Test Submission -> Evaluation -> Ranking ->
-  // Analytics Aggregation -> Dashboard Read), unlike the score-write +
-  // Study Points credit + AuditLog trio above, which must be atomic.
+  // — analytics tolerates lag, unlike the score-write + Study Points
+  // credit + AuditLog trio above, which must be atomic.
   void triggerAnalyticsUpdate(attempt.studentId).catch((err) =>
     logger.error({ err, studentId: attempt.studentId }, "analytics aggregation failed"),
   );
