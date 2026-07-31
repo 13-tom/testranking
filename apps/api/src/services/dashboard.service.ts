@@ -1,6 +1,7 @@
 import type { DashboardResponseData } from "@board-ranking/shared";
 import { NotFoundError } from "../errors/AppError.js";
 import { findUserById } from "../repositories/user.repository.js";
+import { getCurrentRank } from "../repositories/rank.repository.js";
 import {
   findChapterTestAccuracyByStudent,
   findFirstUnattemptedChapterTest,
@@ -15,10 +16,11 @@ export async function getDashboard(userId: string): Promise<DashboardResponseDat
     throw new NotFoundError("Student profile not found");
   }
 
-  const [recentAttempts, chapterAttempts, unattemptedChapterTest] = await Promise.all([
+  const [recentAttempts, chapterAttempts, unattemptedChapterTest, currentRank] = await Promise.all([
     findRecentEvaluatedAttempts(userId),
     findChapterTestAccuracyByStudent(userId),
     findFirstUnattemptedChapterTest(profile.class, userId),
+    getCurrentRank(userId),
   ]);
 
   const recentTests = recentAttempts.map((a) => ({
@@ -43,7 +45,12 @@ export async function getDashboard(userId: string): Promise<DashboardResponseDat
     studyPoints: profile.studyPoints,
     studyLevel: profile.studyLevel,
     studyStreak: profile.studyStreak,
-    rank: null,
+    // Phase 6 (Ranking, BR-044): "Overall Rank" maps to the NATIONAL scope
+    // — the one rank every student has regardless of whether they have a
+    // school on file. "Class Rank" (BR-018's other MVP scope) was
+    // superseded by the geographic SCHOOL/DISTRICT/STATE/NATIONAL scope
+    // set Phase 6 actually built (BR-029) and is never produced.
+    rank: currentRank !== null ? { value: currentRank, scope: "OVERALL" } : null,
     recentTests,
     todaysGoal: buildTodaysGoal(profile.profileCompletion),
     recommendedTest,

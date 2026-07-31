@@ -8,13 +8,17 @@ import type {
   AuthResponseData,
   DashboardResponseData,
   HealthResponseData,
+  LeaderboardMetadataResponseData,
+  LeaderboardResponseData,
   LoginRequest,
   MeResponseData,
+  RankHistoryResponseData,
   RegisterRequest,
   SaveAnswerRequest,
   SaveAnswerResponseData,
   StartAttemptRequest,
   StudentAnalyticsOverview,
+  StudentRanksResponseData,
   TestDetailResponseData,
   TestListResponseData,
   TodayPlanResponseData,
@@ -141,4 +145,28 @@ export function fetchTrendOverview(token: string): Promise<ApiResponse<TrendOver
 
 export function fetchTodayRecommendations(token: string): Promise<ApiResponse<TodayPlanResponseData>> {
   return getJson<TodayPlanResponseData>("/api/v1/recommendations/today", token);
+}
+
+export function fetchLeaderboardMetadata(token: string): Promise<ApiResponse<LeaderboardMetadataResponseData>> {
+  return getJson<LeaderboardMetadataResponseData>("/api/v1/leaderboards", token);
+}
+
+export function fetchLeaderboard(
+  token: string,
+  scope: string,
+  scopeId: string,
+  cursor?: string,
+): Promise<ApiResponse<LeaderboardResponseData>> {
+  const params = new URLSearchParams();
+  if (cursor) params.set("cursor", cursor);
+  const qs = params.toString();
+  return getJson<LeaderboardResponseData>(`/api/v1/leaderboards/${scope}/${scopeId}${qs ? `?${qs}` : ""}`, token);
+}
+
+export function fetchStudentRanks(token: string, studentId: string): Promise<ApiResponse<StudentRanksResponseData>> {
+  return getJson<StudentRanksResponseData>(`/api/v1/students/${studentId}/ranks`, token);
+}
+
+export function fetchRankHistory(token: string, studentId: string): Promise<ApiResponse<RankHistoryResponseData>> {
+  return getJson<RankHistoryResponseData>(`/api/v1/students/${studentId}/rank-history`, token);
 }
