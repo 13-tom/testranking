@@ -43,7 +43,10 @@ describe("Question Bank", () => {
     const subjectsRes = await request(app).get("/api/v1/subjects");
     expect(subjectsRes.status).toBe(200);
     expect(subjectsRes.body.success).toBe(true);
-    const maths = subjectsRes.body.data.find((s: { name: string }) => s.name === "Mathematics");
+    // Multiple classes now seed their own "Mathematics" subject (Class
+    // 9-12), so disambiguate by class — this test specifically checks
+    // Class 10's seeded Real Numbers/Polynomials chapters.
+    const maths = subjectsRes.body.data.find((s: { name: string; class: number }) => s.name === "Mathematics" && s.class === 10);
     expect(maths).toBeDefined();
 
     const chaptersRes = await request(app).get(`/api/v1/chapters?subjectId=${maths.id}`);
