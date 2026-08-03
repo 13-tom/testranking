@@ -28,7 +28,7 @@ export function StatsRow({ studyPoints, studyLevel, studyLevelProgress, studyStr
           <>
             <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-800">
               <div
-                className="h-1.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-400"
+                className="h-1.5 rounded-full bg-gradient-to-r from-marigold-600 to-marigold-400"
                 style={{ width: `${percentToNext}%` }}
               />
             </div>

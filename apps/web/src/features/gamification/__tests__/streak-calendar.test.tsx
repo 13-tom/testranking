@@ -11,15 +11,15 @@ describe("StreakCalendar", () => {
     expect(screen.getByText(/No study activity yet/)).toBeDefined();
   });
 
-  it("renders current and longest streak counts with a filled day per history entry", () => {
+  it("renders the streak labels and a grid cell per history entry", () => {
     const history: StreakHistoryPoint[] = [
       { date: "2026-07-30T00:00:00.000Z", completed: true },
       { date: "2026-07-31T00:00:00.000Z", completed: true },
     ];
-    render(<StreakCalendar currentStreak={2} longestStreak={5} history={history} />);
-    expect(screen.getByText("2")).toBeDefined();
-    expect(screen.getByText("5")).toBeDefined();
-    expect(screen.getByText("Current streak")).toBeDefined();
-    expect(screen.getByText("Longest streak")).toBeDefined();
+    const { container } = render(<StreakCalendar currentStreak={2} longestStreak={5} history={history} />);
+    expect(screen.getByText("day streak")).toBeDefined();
+    expect(screen.getByText("longest streak")).toBeDefined();
+    expect(container.querySelector('[title="2026-07-30"]')).not.toBeNull();
+    expect(container.querySelector('[title="2026-07-31"]')).not.toBeNull();
   });
 });
