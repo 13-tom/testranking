@@ -1274,6 +1274,110 @@ Approved
 
 ---
 
+## BR-046
+
+**Category**
+
+Product / Architecture — Admin Panel (Phase 9 implementation)
+
+**Decision**
+
+Phase 9 builds a lean Admin Panel that closes two gaps already flagged in
+earlier BRs — BR-040's promised-but-unbuilt Admin JWT audience separation,
+and BR-041's deferred Question Bank review workflow — plus Student
+Management, School Management, Test Management additions, and a platform
+overview endpoint, using data structures this build already has. It does
+**not** build the full documented Modules 33-35 / Sprint 12.1-12.3 system:
+dynamic `AdminRole`/`AdminPermission` RBAC with custom-role CRUD, a
+dedicated `AdminAuditLog` table with before/after diffs, an admin
+refresh-token/cookie auth surface, or Competition/Arena/Announcement/
+Notification admin operations (each tied to a system this build never
+built). This mirrors the precedent set by BR-044 (Ranking) and BR-045
+(Gamification): build the documented MVP subset the roadmap phase actually
+needs, record the rest as deferred.
+
+1. **Admin JWT audience separation** (closes BR-040): `signToken` now
+   derives an `aud` claim from `role` automatically (`STUDENT` →
+   `board-ranking-client`, `ADMIN` → `board-ranking-admin`) — no caller
+   passes it explicitly. `authenticate` (student/public routes) now
+   rejects any token whose `aud !== "board-ranking-client"`; a new
+   `authenticateAdmin` (all `/admin/*` routes) rejects `aud !==
+   "board-ranking-admin"`. This replaces the old `authenticate +
+   requireAdmin` (bare `role === "ADMIN"` check) pair — `requireAdmin.ts`
+   is deleted. A student-audience token now gets 401 on an admin route
+   (rejected at authentication) instead of the old 403 (rejected at
+   authorization) — a deliberate, tested behavior change.
+2. **No separate `/admin/auth/login` endpoint or refresh-cookie rotation.**
+   The existing `/api/v1/auth/login` now serves both roles: `loginStudent`
+   treats a missing `StudentProfile` as a data-integrity error only for a
+   STUDENT-role user; for an ADMIN-role user (who legitimately has no
+   `StudentProfile`) it issues an admin-audience token with
+   `studentProfile: null` in the response. This is a genuine bug fix, not
+   just a simplification — before this phase, `loginStudent` unconditionally
+   404'd on a missing profile, so there was no HTTP path for an admin to
+   ever log in; every admin token in this codebase's tests and seed data
+   was minted directly via `signToken()`, bypassing the API entirely.
+   `AuthResponseData.studentProfile` is now `PublicStudentProfile | null`
+   to reflect this (matching `MeResponseData`'s existing shape).
+3. **Suspension enforced at login.** `loginStudent` now throws
+   `ForbiddenError` (403) when `StudentProfile.isSuspended` is true — the
+   `isSuspended`/`suspendedAt`/`suspendedReason` fields have existed
+   unused on `StudentProfile` since Phase 0.
+4. **Question Moderation reuses the existing `QuestionStatus` enum**
+   (closes BR-041) — all 6 values (`DRAFT/IN_REVIEW/APPROVED/PUBLISHED/
+   REJECTED/ARCHIVED`) already existed in the schema, only `DRAFT` and
+   `PUBLISHED` were reachable before this phase. `DRAFT → IN_REVIEW`
+   needed no new endpoint (the existing generic `PATCH
+   /admin/questions/:id {status}` already accepted any enum value). New:
+   `GET /admin/questions/review` (cursor-paginated `IN_REVIEW` queue),
+   `PATCH .../approve` (`IN_REVIEW → APPROVED`), `PATCH .../reject`
+   (`IN_REVIEW → REJECTED`), `PATCH .../archive` (`APPROVED|PUBLISHED →
+   ARCHIVED`), and `POST bulk-approve`/`bulk-reject`/`bulk-archive`
+   (`updateMany` over up to 100 IDs, silently skipping any ID not in the
+   required source status — no per-row error detail). The source docs
+   contradict themselves on `reject` (the endpoint table says "→
+   REJECTED", the lifecycle-guard prose says "returns to DRAFT"); this
+   build uses `REJECTED` since the schema has a dedicated value for
+   exactly this and silently reverting to `DRAFT` would discard the
+   review signal. Approving does **not** auto-publish — the existing
+   direct `PATCH {status: "PUBLISHED"}` is unchanged and still the only
+   path to student-visible. Every moderation action (single or bulk)
+   writes one row to the existing lean `AuditLog` table (BR-042), not a
+   new `AdminAuditLog`.
+5. **Student Management's `grant-points` substitutes for the documented
+   `grant-xp`/`grant-coins`** (tied to the Sprint 8.1/8.2 ledger system
+   BR-045 explicitly deferred) with a grant against the real
+   `StudentProfile.studyPoints` field, recomputing `studyLevel` via the
+   existing `computeStudyLevel` (BR-045) in the same write.
+6. **Test Management additions** (`GET /admin/tests` list, all statuses;
+   `PATCH /admin/tests/:id/unpublish`, `ACTIVE → DRAFT`) extend the
+   existing `test.repository.ts`/`test.service.ts`/`test.controller.ts`
+   rather than adding new files, since they operate on the same `Test`
+   model Phase 4 already owns. Unpublish has no pool-gate check (only
+   the reverse `DRAFT → ACTIVE` direction needs one).
+7. **Platform overview** (`GET /admin/overview`) is one cheap
+   aggregate-counts endpoint (students/questions/tests/schools/evaluated
+   attempts) — covers PRD Ch6 §14's Reports/Basic Analytics bullets at
+   MVP scope, not the documented per-KPI `topSchools`/`topDistricts`/
+   `topStates` breakdown.
+8. **Explicitly deferred**, same as BR-044/BR-045's precedent: dynamic
+   `AdminRole`/`AdminPermission` RBAC and custom-role CRUD (a single fixed
+   `ADMIN` role acts as SUPER_ADMIN-equivalent for now); admin
+   refresh-token/cookie rotation; a dedicated `AdminAuditLog` table with
+   before/after diffs; Competition/Arena/Announcement/Notification admin
+   operations (tied to unbuilt Phase 10+ systems); real XP/Coin grants;
+   School merge; Global Settings (generic key-value config); Support &
+   Moderation notes (not in PRD's own admin panel list); Bulk Upload
+   Questions (CSV) and Duplicate Detection; Test duplicate/clone.
+9. **Backend only this pass** — no Admin Panel frontend, matching how
+   Ranking/Analytics/Gamification each shipped backend first.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1314,6 +1418,7 @@ No major product or architecture decision should be implemented without first be
 | 1.4     | BR-043 (Analytics, Phase 5: full documented system built — 5 pre-computed tables + 6 API modules; FK target/onDelete, weaknessScore name collision, rank-data-doesn't-exist-yet, Module 14 route collision, and several unspecified formula curves all resolved) added. |
 | 1.5     | BR-044 (Ranking, Phase 6: Sprint 6.1 read infrastructure + Sprint 6.2 calculation engine built per BR-029 through BR-036, Sprint 6.3+ deferred; cascading rankingScope, testId population, nullable-schoolId handling, rank.repository.ts activation, CursorPage reuse, and FK target all resolved) added. |
 | 1.6     | BR-045 (Gamification, Phase 7: lean MVP system per docs/04_database.md §17-19 built, the larger Sprint 8.1-8.6 XP/Coin/Mission/Reward ledger system deferred; Milestones reuse from Phase 5, PRACTICE-mode Study Points gate removed, level formula without a persisted ledger, Study Points sources, profileCompletion formula, achievement catalogue, and backend-only scoping all resolved) added. |
+| 1.7     | BR-046 (Admin Panel, Phase 9: lean MVP closing BR-040's Admin JWT audience gap and BR-041's Question Moderation gap, plus Student/School Management, Test Management additions, and platform overview; the full documented dynamic-RBAC/AdminAuditLog/refresh-cookie/Competition-Arena-Notification system deferred; also fixes a pre-existing bug where admin accounts had no working HTTP login path) added. |
 
 ---
 

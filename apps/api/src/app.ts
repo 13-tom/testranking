@@ -24,6 +24,9 @@ import { recommendationRouter } from "./routes/recommendation.routes.js";
 import { leaderboardRouter } from "./routes/leaderboard.routes.js";
 import { studentRankRouter } from "./routes/student-rank.routes.js";
 import { gamificationRouter } from "./routes/gamification.routes.js";
+import { adminStudentRouter } from "./routes/admin-student.routes.js";
+import { adminSchoolRouter } from "./routes/admin-school.routes.js";
+import { adminOverviewRouter } from "./routes/admin-overview.routes.js";
 
 export function createApp() {
   const app = express();
@@ -58,6 +61,13 @@ export function createApp() {
   // Phase 6 (Ranking, BR-029 through BR-036, BR-044)
   app.use("/api/v1/leaderboards", leaderboardRouter);
   app.use("/api/v1/students", studentRankRouter);
+  // Phase 9 (Admin Panel, BR-046) — mounted before gamificationRouter's
+  // broad "/api/v1" prefix below, which would otherwise shadow every
+  // /api/v1/admin/* path mounted after it with its own blanket
+  // authenticate middleware.
+  app.use("/api/v1/admin/students", adminStudentRouter);
+  app.use("/api/v1/admin/schools", adminSchoolRouter);
+  app.use("/api/v1/admin/overview", adminOverviewRouter);
   // Phase 7 (Gamification, BR-045)
   app.use("/api/v1", gamificationRouter);
 

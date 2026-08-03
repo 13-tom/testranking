@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import type { AuthResponseData, MeResponseData } from "@board-ranking/shared";
-import { ConflictError, NotFoundError, UnauthorizedError } from "../errors/AppError.js";
+import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from "../errors/AppError.js";
 import { signToken } from "../lib/jwt.js";
 import {
   createStudentUser,
@@ -66,8 +66,28 @@ export async function loginStudent(input: LoginInput): Promise<AuthResponseData>
 
   const full = await findUserById(user.id);
   const studentProfile = full?.studentProfile;
+
+  // BR-046: an ADMIN user legitimately has no StudentProfile — this login
+  // endpoint is shared across both roles (no separate /admin/auth/login),
+  // so only a STUDENT with a missing profile is a data-integrity error.
   if (!studentProfile) {
+    if (user.role === "ADMIN") {
+      const token = signToken({ sub: user.id, role: user.role });
+      await touchLastLogin(user.id);
+      return {
+        user: { id: user.id, email: user.email, role: user.role, isVerified: user.isVerified },
+        studentProfile: null,
+        token,
+      };
+    }
     throw new NotFoundError("Student profile not found");
+  }
+
+  // BR-046: suspended students are blocked at login, not mid-session —
+  // the isSuspended/suspendedAt/suspendedReason fields have existed unused
+  // since Phase 0.
+  if (studentProfile.isSuspended) {
+    throw new ForbiddenError("This account has been suspended. Contact support for more information.");
   }
 
   await touchLastLogin(user.id);

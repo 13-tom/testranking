@@ -33,7 +33,8 @@ export type LoginRequest = {
 
 export type AuthResponseData = {
   user: PublicUser;
-  studentProfile: PublicStudentProfile;
+  // null for ADMIN-role users, who have no StudentProfile (BR-046).
+  studentProfile: PublicStudentProfile | null;
   token: string;
 };
 

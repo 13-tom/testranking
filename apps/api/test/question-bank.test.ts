@@ -63,11 +63,14 @@ describe("Question Bank", () => {
   });
 
   it("rejects a STUDENT-role token on admin routes", async () => {
+    // BR-046: admin routes now check JWT audience, not just role — a
+    // student-audience token is rejected at authentication (401), before
+    // any role check would run.
     const res = await request(app)
       .post("/api/v1/admin/subjects")
       .set("Authorization", `Bearer ${studentToken}`)
       .send({ name: "Should Fail", boardId, class: 10 });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
   });
 

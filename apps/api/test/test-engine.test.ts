@@ -234,10 +234,12 @@ describe("Test Engine", () => {
     const noTokenRes = await request(app).post("/api/v1/admin/tests").send({});
     expect(noTokenRes.status).toBe(401);
 
+    // BR-046: a student-audience token is now rejected at authentication
+    // (401), before a role check would run.
     const studentRes = await request(app)
       .post("/api/v1/admin/tests")
       .set("Authorization", `Bearer ${studentToken}`)
       .send({});
-    expect(studentRes.status).toBe(403);
+    expect(studentRes.status).toBe(401);
   });
 });

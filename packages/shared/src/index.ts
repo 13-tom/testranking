@@ -13,3 +13,4 @@ export * from "./trend.js";
 export * from "./recommendation.js";
 export * from "./ranking.js";
 export * from "./gamification.js";
+export * from "./admin.js";

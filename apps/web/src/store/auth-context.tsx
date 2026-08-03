@@ -10,7 +10,7 @@ type AuthResult = { success: boolean; message: string };
 type Session = {
   token: string;
   user: PublicUser;
-  studentProfile: PublicStudentProfile;
+  studentProfile: PublicStudentProfile | null;
 };
 
 type AuthContextValue = {

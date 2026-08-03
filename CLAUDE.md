@@ -22,21 +22,25 @@ Study Points/Gamification → Admin Panel. Phases 10+ (Teacher/Parent Portals,
 AI Features, Community, Arena/Competitive features, Marketplace, Mobile
 Apps) are documented but deferred.
 
-**Progress**: Phases 0–7 (Foundation, Authentication, Student Dashboard,
-Question Bank, Test Engine, Analytics, Ranking System, core Study Points/
-Gamification) are built and tested locally; Phases 0–3 are deployed live
-(Vercel + Render + Neon + Upstash), Phases 4–7 pending their next deploy.
-Phase 8 (Admin Panel) is next. See `docs/12_Product_Decisions.md` BR-037
-through BR-045 for every deviation recorded so far.
+**Progress**: Phases 0–7 and 9 (Foundation, Authentication, Student
+Dashboard, Question Bank, Test Engine, Analytics, Ranking System, core
+Study Points/Gamification, and the Admin Panel backend) are built and
+tested locally; Phases 0–3 are deployed live (Vercel + Render + Neon +
+Upstash), Phases 4–7 and 9 pending their next deploy. Phase 8 (Premium
+Features — Subscriptions/Payments) is out of Release 1 MVP scope per
+BR-038 and is skipped; the Admin Panel frontend is the next build item.
+See `docs/12_Product_Decisions.md` BR-037 through BR-046 for every
+deviation recorded so far.
 
 **Known deviations from the docs**: Release 1 auth in this build is email +
 password (not Mobile+OTP) — see BR-037. `User.phone` stays in the schema as
 optional/nullable so OTP can be added later without a migration rework.
-Admin routes are gated by a simple `role === "ADMIN"` check reusing the
-student JWT, not the full Admin JWT audience/RBAC system — see BR-040.
-Question Bank content authoring (seed script + minimal admin CRUD) stands
-in for the Phase 9 Admin Panel's review workflow until that phase is
-built — see BR-041. Ranking (Phase 6) builds only Sprint 6.1 (read
+Admin routes now check a separate Admin JWT audience (`authenticateAdmin`,
+issued automatically by `signToken` based on role) rather than the earlier
+simple `role === "ADMIN"` check — see BR-040/BR-046. Question Bank content
+authoring (seed script + minimal admin CRUD) covers initial content;
+Phase 9 added the review-queue/bulk-moderation workflow on top of it —
+see BR-041/BR-046. Ranking (Phase 6) builds only Sprint 6.1 (read
 infrastructure) + Sprint 6.2 (calculation engine) of the documented
 Ranking design — Sprint 6.3+ (Redis caching, period/cron leaderboards,
 historical movement/timeline, `/leaderboards/me`+`/top`+`/nearby`) is
@@ -48,7 +52,13 @@ fields), not the much larger documented Sprint 8.1-8.6 XP/Coin/Mission/
 Reward ledger system; Study Points now credit on PRACTICE-mode
 submissions too (Phase 4's undocumented RANKED-only gate is corrected);
 Study Level is computed on the fly, not a persisted XP ledger — see
-BR-045.
+BR-045. Admin Panel (Phase 9) builds Question Moderation, Student
+Management, School Management, Test Management additions, and a platform
+overview endpoint — not the full documented dynamic-RBAC/AdminAuditLog/
+refresh-cookie/Competition-Arena-Notification system; there is still a
+single fixed ADMIN role, not custom roles/permissions. `/api/v1/auth/login`
+is shared by both roles (no separate `/admin/auth/login`) and now returns
+`studentProfile: null` for ADMIN-role users — see BR-046.
 
 ## Folder structure
 

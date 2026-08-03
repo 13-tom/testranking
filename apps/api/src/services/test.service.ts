@@ -1,16 +1,19 @@
 import { Prisma } from "@prisma/client";
-import type { AdminTest, TestDetailResponseData, TestListResponseData } from "@board-ranking/shared";
+import type { AdminTest, AdminTestListResponseData, TestDetailResponseData, TestListResponseData } from "@board-ranking/shared";
 import { ConflictError, NotFoundError, ValidationError } from "../errors/AppError.js";
 import {
   createTest as createTestRepo,
   findActivePublicTestById,
+  findAdminTests,
   findPublicTests,
   findPublishedQuestionPoolBySubjectIds,
   findTestById,
   updateTest as updateTestRepo,
 } from "../repositories/test.repository.js";
 import { evaluatePoolGate } from "../rules/test-pool-gate.rules.js";
+import { decodeAdminCursor, encodeAdminCursor, evaluateTestUnpublish } from "../rules/admin.rules.js";
 import type { TestCreateInput, TestsQuery, TestUpdateInput } from "../validators/test-engine.validators.js";
+import type { AdminTestsQuery } from "../validators/admin.validators.js";
 
 export async function listPublicTests(filter: TestsQuery): Promise<TestListResponseData> {
   const tests = await findPublicTests(filter);
@@ -154,6 +157,35 @@ export async function publishTest(id: string): Promise<AdminTest> {
   }
 
   const updated = await updateTestRepo(id, { status: "ACTIVE" });
+  return toAdminTest(updated);
+}
+
+const DEFAULT_ADMIN_TEST_LIMIT = 20;
+
+export async function listAdminTests(query: AdminTestsQuery): Promise<AdminTestListResponseData> {
+  const limit = query.limit ?? DEFAULT_ADMIN_TEST_LIMIT;
+  const cursor = decodeAdminCursor(query.cursor);
+  const rows = await findAdminTests({ status: query.status, class: query.class }, cursor, limit);
+
+  const items = rows.map(toSummary);
+  const last = rows[rows.length - 1];
+  const nextCursor = rows.length === limit && last ? encodeAdminCursor({ createdAt: last.createdAt, id: last.id }) : null;
+
+  return { items, nextCursor };
+}
+
+// ACTIVE -> DRAFT: the inverse of publishTest's DRAFT -> ACTIVE pool-gate
+// check (BR-046) — no gate needed going backwards, only a status guard.
+export async function unpublishTest(id: string): Promise<AdminTest> {
+  const test = await findTestById(id);
+  if (!test) {
+    throw new NotFoundError("Test not found");
+  }
+  const evaluation = evaluateTestUnpublish(test.status);
+  if (!evaluation.valid) {
+    throw new ConflictError(evaluation.error ?? "Invalid test status transition");
+  }
+  const updated = await updateTestRepo(id, { status: "DRAFT" });
   return toAdminTest(updated);
 }
 

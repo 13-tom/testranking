@@ -27,6 +27,24 @@ export function findActivePublicTestById(id: string) {
   return prisma.test.findFirst({ where: { id, status: "ACTIVE", isActive: true, visibility: "PUBLIC" } });
 }
 
+// Phase 9 (Admin Panel, BR-046): admin list, all statuses (not just
+// ACTIVE/PUBLIC like findPublicTests) — cursor-paginated, newest first.
+export function findAdminTests(
+  filter: { status?: string; class?: number },
+  cursor: { createdAt: Date; id: string } | null,
+  limit: number,
+) {
+  return prisma.test.findMany({
+    where: {
+      status: filter.status as Prisma.EnumTestStatusFilter["equals"],
+      class: filter.class,
+      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit,
+  });
+}
+
 export function createTest(
   data: Omit<Prisma.TestCreateInput, "testSubjects" | "testChapters" | "testTopics">,
   scope: { subjectIds: string[]; chapterIds: string[]; topicIds: string[] },
@@ -109,6 +127,10 @@ export async function findPublishedQuestionPoolBySubjectIds(subjectIds: string[]
     select: POOL_SELECT,
   });
   return toPoolQuestions(rows);
+}
+
+export function countTestsByStatus() {
+  return prisma.test.groupBy({ by: ["status"], _count: { _all: true } });
 }
 
 export function findChapterIdsBySubjectIds(subjectIds: string[]) {
