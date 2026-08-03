@@ -33,10 +33,19 @@ export type DashboardGoal = {
   target: number | null;
 };
 
+// Phase 7 (Gamification, BR-045): xpToNext/totalXpForNext from
+// computeStudyLevel(studyPoints) — the level curve is a pure function,
+// not a persisted ledger, so these are computed fresh on every read.
+export type DashboardStudyLevelProgress = {
+  xpToNext: number;
+  totalXpForNext: number;
+};
+
 export type DashboardResponseData = {
   profile: DashboardProfile;
   studyPoints: number;
   studyLevel: number;
+  studyLevelProgress: DashboardStudyLevelProgress;
   studyStreak: number;
   rank: DashboardRank;
   recentTests: DashboardRecentTest[];

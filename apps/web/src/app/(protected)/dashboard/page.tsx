@@ -36,6 +36,7 @@ export default function DashboardPage() {
       <StatsRow
         studyPoints={dashboard.studyPoints}
         studyLevel={dashboard.studyLevel}
+        studyLevelProgress={dashboard.studyLevelProgress}
         studyStreak={dashboard.studyStreak}
       />
       <RankCard rank={dashboard.rank} />

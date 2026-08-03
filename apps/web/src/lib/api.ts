@@ -1,4 +1,5 @@
 import type {
+  AchievementsResponseData,
   AnalyticsDashboardStrengths,
   AnalyticsDashboardWeaknesses,
   AnalyticsProgressResponseData,
@@ -17,6 +18,7 @@ import type {
   SaveAnswerRequest,
   SaveAnswerResponseData,
   StartAttemptRequest,
+  StreakResponseData,
   StudentAnalyticsOverview,
   StudentRanksResponseData,
   TestDetailResponseData,
@@ -169,4 +171,12 @@ export function fetchStudentRanks(token: string, studentId: string): Promise<Api
 
 export function fetchRankHistory(token: string, studentId: string): Promise<ApiResponse<RankHistoryResponseData>> {
   return getJson<RankHistoryResponseData>(`/api/v1/students/${studentId}/rank-history`, token);
+}
+
+export function fetchAchievements(token: string): Promise<ApiResponse<AchievementsResponseData>> {
+  return getJson<AchievementsResponseData>("/api/v1/achievements", token);
+}
+
+export function fetchStreak(token: string): Promise<ApiResponse<StreakResponseData>> {
+  return getJson<StreakResponseData>("/api/v1/streak", token);
 }

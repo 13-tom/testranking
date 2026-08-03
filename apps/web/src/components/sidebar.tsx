@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/tests", label: "Tests" },
   { href: "/analytics", label: "Analytics" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/achievements", label: "Achievements" },
   { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
 ];

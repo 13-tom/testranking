@@ -8,6 +8,7 @@ import {
   findRecentEvaluatedAttempts,
 } from "../repositories/test-attempt.repository.js";
 import { buildRecommendedTest, buildTodaysGoal } from "../rules/dashboard.rules.js";
+import { computeStudyLevel } from "../rules/gamification.rules.js";
 
 export async function getDashboard(userId: string): Promise<DashboardResponseData> {
   const user = await findUserById(userId);
@@ -36,6 +37,11 @@ export async function getDashboard(userId: string): Promise<DashboardResponseDat
     unattemptedChapterTest ? { id: unattemptedChapterTest.id, name: unattemptedChapterTest.name } : null,
   );
 
+  // Phase 7 (Gamification, BR-045): computed fresh from studyPoints, not
+  // read from a persisted ledger — the same pure function that produced
+  // the stored studyLevel above.
+  const { xpToNext, totalXpForNext } = computeStudyLevel(profile.studyPoints);
+
   return {
     profile: {
       fullName: profile.fullName,
@@ -44,6 +50,7 @@ export async function getDashboard(userId: string): Promise<DashboardResponseDat
     },
     studyPoints: profile.studyPoints,
     studyLevel: profile.studyLevel,
+    studyLevelProgress: { xpToNext, totalXpForNext },
     studyStreak: profile.studyStreak,
     // Phase 6 (Ranking, BR-044): "Overall Rank" maps to the NATIONAL scope
     // — the one rank every student has regardless of whether they have a
