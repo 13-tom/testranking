@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/store/auth-context";
+import { useAdminAuth } from "@/store/admin-auth-context";
+import { login as loginRequest } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginFormSchema, type LoginFormValues } from "./schemas";
 
 export function LoginForm() {
-  const { login } = useAuth();
+  const { setSession } = useAuth();
+  const { setSession: setAdminSession } = useAdminAuth();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -22,11 +25,17 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginFormValues) {
     setFormError(null);
-    const result = await login(values);
-    if (result.success) {
-      router.push("/dashboard");
+    const res = await loginRequest(values);
+    if (!res.success) {
+      setFormError(res.message || "Invalid email or password");
+      return;
+    }
+    if (res.data.user.role === "ADMIN") {
+      setAdminSession(res.data);
+      router.push("/admin");
     } else {
-      setFormError(result.message || "Invalid email or password");
+      setSession(res.data);
+      router.push("/dashboard");
     }
   }
 

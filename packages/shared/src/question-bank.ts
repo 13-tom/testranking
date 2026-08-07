@@ -27,6 +27,10 @@ export type SubjectListResponseData = SubjectPublic[];
 export type SubjectDetailResponseData = SubjectPublic;
 export type ChapterListResponseData = ChapterPublic[];
 
+export type AdminSubjectListResponseData = AdminSubject[];
+export type AdminChapterListResponseData = AdminChapter[];
+export type AdminTopicListResponseData = AdminTopic[];
+
 // --- Admin DTOs (unrestricted, admin-only routes) ---
 
 export type AdminSubjectInput = {

@@ -20,6 +20,7 @@ type AuthContextValue = {
   isLoading: boolean;
   login: (input: LoginRequest) => Promise<AuthResult>;
   register: (input: RegisterRequest) => Promise<AuthResult>;
+  setSession: (data: Session) => void;
   logout: () => void;
 };
 
@@ -84,7 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, user, studentProfile, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ token, user, studentProfile, isLoading, login, register, setSession: applySession, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

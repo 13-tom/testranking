@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
-import type { AdminChapter, ChapterListResponseData } from "@board-ranking/shared";
+import type { AdminChapter, AdminChapterListResponseData, ChapterListResponseData } from "@board-ranking/shared";
 import { ConflictError, NotFoundError } from "../errors/AppError.js";
 import {
   createChapter as createChapterRepo,
   findActiveChapters,
+  findAllChapters,
   findChapterById,
   updateChapter as updateChapterRepo,
 } from "../repositories/chapter.repository.js";
@@ -12,6 +13,11 @@ import type { ChapterCreateInput, ChaptersQuery, ChapterUpdateInput } from "../v
 export async function listPublicChapters(filter: ChaptersQuery): Promise<ChapterListResponseData> {
   const chapters = await findActiveChapters(filter);
   return chapters.map(toPublicChapter);
+}
+
+export async function listAdminChapters(filter: { subjectId?: string }): Promise<AdminChapterListResponseData> {
+  const chapters = await findAllChapters(filter);
+  return chapters.map(toAdminChapter);
 }
 
 export async function createChapter(input: ChapterCreateInput): Promise<AdminChapter> {

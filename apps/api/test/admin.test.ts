@@ -123,6 +123,23 @@ describe("Admin Panel (Phase 9, BR-046)", () => {
     expect(res.body.data.schools.total).toBeGreaterThanOrEqual(1);
   });
 
+  it("lists admin taxonomy (subjects/chapters/topics) for form dropdowns", async () => {
+    const subjectsRes = await request(app).get("/api/v1/admin/subjects").set("Authorization", `Bearer ${adminToken}`);
+    expect(subjectsRes.status).toBe(200);
+    expect((subjectsRes.body.data as Array<{ id: string }>).some((s) => s.id === subjectId)).toBe(true);
+
+    const chaptersRes = await request(app).get("/api/v1/admin/chapters").set("Authorization", `Bearer ${adminToken}`).query({ subjectId });
+    expect(chaptersRes.status).toBe(200);
+    expect((chaptersRes.body.data as Array<{ subjectId: string }>).every((c) => c.subjectId === subjectId)).toBe(true);
+
+    const topicsRes = await request(app).get("/api/v1/admin/topics").set("Authorization", `Bearer ${adminToken}`);
+    expect(topicsRes.status).toBe(200);
+    expect((topicsRes.body.data as Array<{ id: string }>).some((t) => t.id === topicId)).toBe(true);
+
+    const studentRejectRes = await request(app).get("/api/v1/admin/subjects").set("Authorization", `Bearer ${studentToken}`);
+    expect(studentRejectRes.status).toBe(401);
+  });
+
   it("walks a question through the review-queue moderation cycle", async () => {
     const createRes = await request(app)
       .post("/api/v1/admin/questions")

@@ -1378,6 +1378,94 @@ Approved
 
 ---
 
+## BR-047
+
+**Category**
+
+Product / Architecture — Admin Panel frontend (Phase 9 completion)
+
+**Decision**
+
+This pass builds the Admin Panel frontend against the BR-046 backend
+surface: an Overview dashboard, Question Moderation (review queue + bulk
+approve/reject/archive + single-question CRUD and options editing),
+Student Management (list/search/filter, detail, suspend/reactivate, grant
+points), School Management (list/search/filter, detail + stats,
+archive/activate), and Test Management (list all statuses, create/edit,
+publish/unpublish) — a greenfield build, since no admin frontend code,
+routes, or types existed anywhere in `apps/web`.
+
+1. **A new `AdminAuthProvider`/`useAdminAuth`** (`apps/web/src/store/
+   admin-auth-context.tsx`), separate from the existing student
+   `AuthProvider`. The existing provider bootstraps by calling `/auth/me`
+   and requires `studentProfile` to be truthy, which would actively reject
+   and log out an admin session (BR-046 admin logins always return
+   `studentProfile: null`). There is no admin-audience "whoami" endpoint,
+   so — matching BR-046's already-accepted "no refresh-token rotation"
+   simplicity — the admin session is persisted as `{token, user}` straight
+   from the login response (`localStorage` key
+   `board-ranking-admin-session`, separate from the student token key) and
+   trusted client-side until an API call 401s, rather than re-validated on
+   every mount. Both providers are mounted together in the root
+   `Providers` tree; the shared `/login` page now branches on
+   `res.data.user.role` after a single `POST /auth/login` call and routes
+   into the student shell (`/dashboard`) or the admin shell (`/admin`)
+   accordingly. `AuthContextValue` gained a `setSession` method (exposing
+   the existing internal `applySession` logic) so `LoginForm` can apply an
+   already-fetched `AuthResponseData` without re-deriving it through
+   `login()`, which is now reserved for the STUDENT branch's original
+   behavior.
+2. **Three new admin-scoped taxonomy list endpoints** —
+   `GET /admin/subjects`, `GET /admin/chapters` (optional `subjectId`
+   filter), `GET /admin/topics` (optional `chapterId` filter), all
+   `authenticateAdmin`-gated. Before this phase there was no admin-scoped
+   way to list subjects/chapters/topics at all — the only `GET`s were the
+   public routes (`authenticate`-gated, student audience only, and for
+   topics not exposed publicly whatsoever), which reject an admin token
+   under BR-046's audience separation. The question-create and test-create
+   forms need these as cascading dropdowns, so this is a small, justified
+   backend addition alongside the mostly-frontend phase — reusing the
+   existing `subject.repository.ts`/`chapter.repository.ts`/
+   `topic.repository.ts` and adding one list function each (unfiltered by
+   `isActive`, unlike the public "active only" queries, since an admin
+   managing content needs to see inactive rows too). New shared types:
+   `AdminSubjectListResponseData`, `AdminChapterListResponseData`,
+   `AdminTopicListResponseData`.
+3. **New reusable UI primitives** in `apps/web/src/components/ui/`:
+   `Table`/`TableHead`/`TableBody`/`TableRow`/`TableHeaderCell`/
+   `TableCell`, `Modal`, `Select`, `Badge`. Before this phase only
+   `Button`/`Card`/`Input`/`Avatar`/`Skeleton` existed, and the one
+   existing table (`leaderboard-table.tsx`) was a hand-built `<table>`
+   inlined in a feature file rather than a shared primitive — this phase
+   is far more CRUD/table-heavy than anything built so far, so promoting
+   these to `components/ui` avoids repeating the markup five times.
+4. **`lib/api.ts` gained an `authPatchJson` helper** (missing before this
+   phase) since most admin mutation endpoints are `PATCH` (suspend,
+   archive, activate, approve/reject, publish/unpublish), unlike the
+   student-facing API surface which is mostly `POST`/`PUT`.
+5. **Pagination follows the existing cursor "load more" convention**
+   (already used by `leaderboard/page.tsx`) rather than introducing a new
+   numbered-pagination component — admin lists reuse the same
+   `useState`+`useEffect`+"Load more" button pattern.
+6. **Board selection is a plain text UUID input**, not a dropdown, on the
+   test-create form. There is no admin Board list endpoint (Boards were
+   out of scope for this decision — only subjects/chapters/topics were
+   approved as new list endpoints) and this build only ever seeds one
+   Board (CBSE), so a full Board management surface is deferred rather
+   than built speculatively.
+7. **No taxonomy management screens.** The new subject/chapter/topic list
+   endpoints exist solely to populate dropdowns in the question/test
+   forms; creating or editing subjects/chapters/topics themselves (their
+   `POST`/`PATCH` endpoints have existed since Phase 4) has no frontend in
+   this pass, matching PRD Ch6 §14's admin panel scope which does not list
+   taxonomy authoring as a screen.
+
+**Status**
+
+Approved
+
+---
+
 # Pending Decisions
 
 The following topics are still under discussion and will be finalized later:
@@ -1419,6 +1507,7 @@ No major product or architecture decision should be implemented without first be
 | 1.5     | BR-044 (Ranking, Phase 6: Sprint 6.1 read infrastructure + Sprint 6.2 calculation engine built per BR-029 through BR-036, Sprint 6.3+ deferred; cascading rankingScope, testId population, nullable-schoolId handling, rank.repository.ts activation, CursorPage reuse, and FK target all resolved) added. |
 | 1.6     | BR-045 (Gamification, Phase 7: lean MVP system per docs/04_database.md §17-19 built, the larger Sprint 8.1-8.6 XP/Coin/Mission/Reward ledger system deferred; Milestones reuse from Phase 5, PRACTICE-mode Study Points gate removed, level formula without a persisted ledger, Study Points sources, profileCompletion formula, achievement catalogue, and backend-only scoping all resolved) added. |
 | 1.7     | BR-046 (Admin Panel, Phase 9: lean MVP closing BR-040's Admin JWT audience gap and BR-041's Question Moderation gap, plus Student/School Management, Test Management additions, and platform overview; the full documented dynamic-RBAC/AdminAuditLog/refresh-cookie/Competition-Arena-Notification system deferred; also fixes a pre-existing bug where admin accounts had no working HTTP login path) added. |
+| 1.8     | BR-047 (Admin Panel frontend, Phase 9 completion: Overview/Question Moderation/Student Management/School Management/Test Management screens built greenfield; new AdminAuthProvider, 3 new admin taxonomy list endpoints, new Table/Modal/Select/Badge UI primitives, authPatchJson helper, and the shared /login page now branches by role) added. |
 
 ---
 

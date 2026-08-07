@@ -8,6 +8,10 @@ export function findActiveSubjects() {
   });
 }
 
+export function findAllSubjects() {
+  return prisma.subject.findMany({ orderBy: { displayOrder: "asc" } });
+}
+
 export function findActiveSubjectById(id: string) {
   return prisma.subject.findFirst({
     where: { id, isActive: true, board: { isActive: true } },

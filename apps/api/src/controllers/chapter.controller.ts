@@ -1,11 +1,22 @@
 import type { Request, Response } from "express";
-import type { AdminChapter, ApiResponse, ChapterListResponseData } from "@board-ranking/shared";
-import { createChapter as createChapterService, listPublicChapters, updateChapter as updateChapterService } from "../services/chapter.service.js";
+import type { AdminChapter, AdminChapterListResponseData, ApiResponse, ChapterListResponseData } from "@board-ranking/shared";
+import {
+  createChapter as createChapterService,
+  listAdminChapters,
+  listPublicChapters,
+  updateChapter as updateChapterService,
+} from "../services/chapter.service.js";
 import type { ChapterCreateInput, ChaptersQuery, ChapterUpdateInput } from "../validators/question-bank.validators.js";
 
 export async function listChapters(req: Request, res: Response): Promise<void> {
   const data = await listPublicChapters(req.query as ChaptersQuery);
   const body: ApiResponse<ChapterListResponseData> = { success: true, message: "", data };
+  res.status(200).json(body);
+}
+
+export async function listAdminChaptersHandler(req: Request, res: Response): Promise<void> {
+  const data = await listAdminChapters(req.query as ChaptersQuery);
+  const body: ApiResponse<AdminChapterListResponseData> = { success: true, message: "", data };
   res.status(200).json(body);
 }
 

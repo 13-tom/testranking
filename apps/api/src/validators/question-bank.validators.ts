@@ -46,6 +46,11 @@ export type TopicCreateInput = z.infer<typeof topicCreateSchema>;
 export const topicUpdateSchema = topicCreateSchema.partial().extend({ isActive: z.boolean().optional() });
 export type TopicUpdateInput = z.infer<typeof topicUpdateSchema>;
 
+export const topicsQuerySchema = z.object({
+  chapterId: z.string().uuid().optional(),
+});
+export type TopicsQuery = z.infer<typeof topicsQuerySchema>;
+
 export const questionCreateSchema = z.object({
   topicId: z.string().uuid(),
   questionText: z.string().min(1),

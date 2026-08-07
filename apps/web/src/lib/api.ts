@@ -1,5 +1,22 @@
 import type {
   AchievementsResponseData,
+  AdminChapterListResponseData,
+  AdminQuestion,
+  AdminQuestionInput,
+  AdminQuestionOption,
+  AdminQuestionOptionInput,
+  AdminQuestionOptionUpdateInput,
+  AdminQuestionUpdateInput,
+  AdminSchoolDetail,
+  AdminSchoolListQuery,
+  AdminStudentDetail,
+  AdminSubjectListResponseData,
+  AdminTest,
+  AdminTestInput,
+  AdminTestListQuery,
+  AdminTestListResponseData,
+  AdminTestUpdateInput,
+  AdminTopicListResponseData,
   AnalyticsDashboardStrengths,
   AnalyticsDashboardWeaknesses,
   AnalyticsProgressResponseData,
@@ -7,20 +24,29 @@ import type {
   AttemptResultResponseData,
   AttemptStateResponseData,
   AuthResponseData,
+  BulkModerationResultData,
+  BulkQuestionModerationInput,
   DashboardResponseData,
+  GrantPointsInput,
   HealthResponseData,
   LeaderboardMetadataResponseData,
   LeaderboardResponseData,
   LoginRequest,
   MeResponseData,
+  PlatformOverviewResponseData,
   RankHistoryResponseData,
   RegisterRequest,
+  ReviewQueueResponseData,
   SaveAnswerRequest,
   SaveAnswerResponseData,
+  SchoolListResponseData,
+  SchoolStatsResponseData,
   StartAttemptRequest,
   StreakResponseData,
   StudentAnalyticsOverview,
+  StudentListResponseData,
   StudentRanksResponseData,
+  SuspendStudentInput,
   TestDetailResponseData,
   TestListResponseData,
   TodayPlanResponseData,
@@ -60,6 +86,15 @@ async function authPutJson<T>(path: string, token: string, body: unknown): Promi
     method: "PUT",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
+  });
+  return (await res.json()) as ApiResponse<T>;
+}
+
+async function authPatchJson<T>(path: string, token: string, body?: unknown): Promise<ApiResponse<T>> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body ?? {}),
   });
   return (await res.json()) as ApiResponse<T>;
 }
@@ -179,4 +214,160 @@ export function fetchAchievements(token: string): Promise<ApiResponse<Achievemen
 
 export function fetchStreak(token: string): Promise<ApiResponse<StreakResponseData>> {
   return getJson<StreakResponseData>("/api/v1/streak", token);
+}
+
+// --- Admin (Phase 9, BR-046/BR-047) ---
+
+export function fetchAdminOverview(token: string): Promise<ApiResponse<PlatformOverviewResponseData>> {
+  return getJson<PlatformOverviewResponseData>("/api/v1/admin/overview", token);
+}
+
+export function fetchAdminSubjects(token: string): Promise<ApiResponse<AdminSubjectListResponseData>> {
+  return getJson<AdminSubjectListResponseData>("/api/v1/admin/subjects", token);
+}
+
+export function fetchAdminChapters(token: string, subjectId?: string): Promise<ApiResponse<AdminChapterListResponseData>> {
+  const qs = subjectId ? `?subjectId=${subjectId}` : "";
+  return getJson<AdminChapterListResponseData>(`/api/v1/admin/chapters${qs}`, token);
+}
+
+export function fetchAdminTopics(token: string, chapterId?: string): Promise<ApiResponse<AdminTopicListResponseData>> {
+  const qs = chapterId ? `?chapterId=${chapterId}` : "";
+  return getJson<AdminTopicListResponseData>(`/api/v1/admin/topics${qs}`, token);
+}
+
+export function fetchReviewQueue(token: string, cursor?: string): Promise<ApiResponse<ReviewQueueResponseData>> {
+  const qs = cursor ? `?cursor=${cursor}` : "";
+  return getJson<ReviewQueueResponseData>(`/api/v1/admin/questions/review${qs}`, token);
+}
+
+export function bulkApproveQuestions(token: string, questionIds: string[]): Promise<ApiResponse<BulkModerationResultData>> {
+  return authPostJson<BulkModerationResultData>("/api/v1/admin/questions/bulk-approve", token, { questionIds } satisfies BulkQuestionModerationInput);
+}
+
+export function bulkRejectQuestions(token: string, questionIds: string[]): Promise<ApiResponse<BulkModerationResultData>> {
+  return authPostJson<BulkModerationResultData>("/api/v1/admin/questions/bulk-reject", token, { questionIds } satisfies BulkQuestionModerationInput);
+}
+
+export function bulkArchiveQuestions(token: string, questionIds: string[]): Promise<ApiResponse<BulkModerationResultData>> {
+  return authPostJson<BulkModerationResultData>("/api/v1/admin/questions/bulk-archive", token, { questionIds } satisfies BulkQuestionModerationInput);
+}
+
+export function createAdminQuestion(token: string, body: AdminQuestionInput): Promise<ApiResponse<AdminQuestion>> {
+  return authPostJson<AdminQuestion>("/api/v1/admin/questions", token, body);
+}
+
+export function fetchAdminQuestion(token: string, id: string): Promise<ApiResponse<AdminQuestion>> {
+  return getJson<AdminQuestion>(`/api/v1/admin/questions/${id}`, token);
+}
+
+export function updateAdminQuestion(token: string, id: string, body: AdminQuestionUpdateInput): Promise<ApiResponse<AdminQuestion>> {
+  return authPatchJson<AdminQuestion>(`/api/v1/admin/questions/${id}`, token, body);
+}
+
+export function approveQuestion(token: string, id: string): Promise<ApiResponse<AdminQuestion>> {
+  return authPatchJson<AdminQuestion>(`/api/v1/admin/questions/${id}/approve`, token);
+}
+
+export function rejectQuestion(token: string, id: string): Promise<ApiResponse<AdminQuestion>> {
+  return authPatchJson<AdminQuestion>(`/api/v1/admin/questions/${id}/reject`, token);
+}
+
+export function archiveQuestion(token: string, id: string): Promise<ApiResponse<AdminQuestion>> {
+  return authPatchJson<AdminQuestion>(`/api/v1/admin/questions/${id}/archive`, token);
+}
+
+export function createQuestionOption(token: string, questionId: string, body: AdminQuestionOptionInput): Promise<ApiResponse<AdminQuestionOption>> {
+  return authPostJson<AdminQuestionOption>(`/api/v1/admin/questions/${questionId}/options`, token, body);
+}
+
+export function updateQuestionOption(
+  token: string,
+  questionId: string,
+  optionId: string,
+  body: AdminQuestionOptionUpdateInput,
+): Promise<ApiResponse<AdminQuestionOption>> {
+  return authPatchJson<AdminQuestionOption>(`/api/v1/admin/questions/${questionId}/options/${optionId}`, token, body);
+}
+
+export function fetchAdminStudents(
+  token: string,
+  query: { cursor?: string; search?: string; class?: number; schoolId?: string; isSuspended?: boolean } = {},
+): Promise<ApiResponse<StudentListResponseData>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return getJson<StudentListResponseData>(`/api/v1/admin/students${qs ? `?${qs}` : ""}`, token);
+}
+
+export function fetchAdminStudent(token: string, id: string): Promise<ApiResponse<AdminStudentDetail>> {
+  return getJson<AdminStudentDetail>(`/api/v1/admin/students/${id}`, token);
+}
+
+export function suspendStudent(token: string, id: string, body: SuspendStudentInput): Promise<ApiResponse<AdminStudentDetail>> {
+  return authPatchJson<AdminStudentDetail>(`/api/v1/admin/students/${id}/suspend`, token, body);
+}
+
+export function reactivateStudent(token: string, id: string): Promise<ApiResponse<AdminStudentDetail>> {
+  return authPatchJson<AdminStudentDetail>(`/api/v1/admin/students/${id}/reactivate`, token);
+}
+
+export function grantStudentPoints(token: string, id: string, body: GrantPointsInput): Promise<ApiResponse<AdminStudentDetail>> {
+  return authPostJson<AdminStudentDetail>(`/api/v1/admin/students/${id}/grant-points`, token, body);
+}
+
+export function fetchAdminSchools(token: string, query: AdminSchoolListQuery = {}): Promise<ApiResponse<SchoolListResponseData>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return getJson<SchoolListResponseData>(`/api/v1/admin/schools${qs ? `?${qs}` : ""}`, token);
+}
+
+export function fetchAdminSchool(token: string, id: string): Promise<ApiResponse<AdminSchoolDetail>> {
+  return getJson<AdminSchoolDetail>(`/api/v1/admin/schools/${id}`, token);
+}
+
+export function fetchSchoolStats(token: string, id: string): Promise<ApiResponse<SchoolStatsResponseData>> {
+  return getJson<SchoolStatsResponseData>(`/api/v1/admin/schools/${id}/stats`, token);
+}
+
+export function archiveSchool(token: string, id: string): Promise<ApiResponse<AdminSchoolDetail>> {
+  return authPatchJson<AdminSchoolDetail>(`/api/v1/admin/schools/${id}/archive`, token);
+}
+
+export function activateSchool(token: string, id: string): Promise<ApiResponse<AdminSchoolDetail>> {
+  return authPatchJson<AdminSchoolDetail>(`/api/v1/admin/schools/${id}/activate`, token);
+}
+
+export function fetchAdminTests(token: string, query: AdminTestListQuery = {}): Promise<ApiResponse<AdminTestListResponseData>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return getJson<AdminTestListResponseData>(`/api/v1/admin/tests${qs ? `?${qs}` : ""}`, token);
+}
+
+export function fetchAdminTestDetail(token: string, id: string): Promise<ApiResponse<AdminTest>> {
+  return getJson<AdminTest>(`/api/v1/admin/tests/${id}`, token);
+}
+
+export function createAdminTest(token: string, body: AdminTestInput): Promise<ApiResponse<AdminTest>> {
+  return authPostJson<AdminTest>("/api/v1/admin/tests", token, body);
+}
+
+export function updateAdminTest(token: string, id: string, body: AdminTestUpdateInput): Promise<ApiResponse<AdminTest>> {
+  return authPatchJson<AdminTest>(`/api/v1/admin/tests/${id}`, token, body);
+}
+
+export function publishTest(token: string, id: string): Promise<ApiResponse<AdminTest>> {
+  return authPatchJson<AdminTest>(`/api/v1/admin/tests/${id}/publish`, token);
+}
+
+export function unpublishTest(token: string, id: string): Promise<ApiResponse<AdminTest>> {
+  return authPatchJson<AdminTest>(`/api/v1/admin/tests/${id}/unpublish`, token);
 }

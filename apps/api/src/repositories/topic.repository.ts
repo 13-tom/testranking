@@ -5,6 +5,13 @@ export function findTopicById(id: string) {
   return prisma.topic.findUnique({ where: { id } });
 }
 
+export function findAllTopics(filter: { chapterId?: string }) {
+  return prisma.topic.findMany({
+    where: filter.chapterId ? { chapterId: filter.chapterId } : {},
+    orderBy: { displayOrder: "asc" },
+  });
+}
+
 export function findTopicWithHierarchyById(id: string) {
   return prisma.topic.findUnique({
     where: { id },

@@ -20,6 +20,13 @@ export function findChapterById(id: string) {
   return prisma.chapter.findUnique({ where: { id } });
 }
 
+export function findAllChapters(filter: { subjectId?: string }) {
+  return prisma.chapter.findMany({
+    where: filter.subjectId ? { subjectId: filter.subjectId } : {},
+    orderBy: { displayOrder: "asc" },
+  });
+}
+
 export function createChapter(input: ChapterCreateInput) {
   return prisma.chapter.create({ data: input });
 }

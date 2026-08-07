@@ -1,12 +1,17 @@
 import { Prisma } from "@prisma/client";
-import type { AdminTopic } from "@board-ranking/shared";
+import type { AdminTopic, AdminTopicListResponseData } from "@board-ranking/shared";
 import { ConflictError, NotFoundError } from "../errors/AppError.js";
 import {
   createTopic as createTopicRepo,
+  findAllTopics,
   findTopicById,
   updateTopic as updateTopicRepo,
 } from "../repositories/topic.repository.js";
 import type { TopicCreateInput, TopicUpdateInput } from "../validators/question-bank.validators.js";
+
+export async function listAdminTopics(filter: { chapterId?: string }): Promise<AdminTopicListResponseData> {
+  return findAllTopics(filter);
+}
 
 export async function createTopic(input: TopicCreateInput): Promise<AdminTopic> {
   try {

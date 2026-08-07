@@ -24,12 +24,13 @@ Apps) are documented but deferred.
 
 **Progress**: Phases 0–7 and 9 (Foundation, Authentication, Student
 Dashboard, Question Bank, Test Engine, Analytics, Ranking System, core
-Study Points/Gamification, and the Admin Panel backend) are built and
-tested locally; Phases 0–3 are deployed live (Vercel + Render + Neon +
-Upstash), Phases 4–7 and 9 pending their next deploy. Phase 8 (Premium
-Features — Subscriptions/Payments) is out of Release 1 MVP scope per
-BR-038 and is skipped; the Admin Panel frontend is the next build item.
-See `docs/12_Product_Decisions.md` BR-037 through BR-046 for every
+Study Points/Gamification, and the full Admin Panel — backend and
+frontend) are built and tested locally; Phases 0–3 are deployed live
+(Vercel + Render + Neon + Upstash), Phases 4–7 and 9 pending their next
+deploy. Phase 8 (Premium Features — Subscriptions/Payments) is out of
+Release 1 MVP scope per BR-038 and is skipped. Release 1 MVP scope
+(Phases 0–9) is now feature-complete pending deploy of Phases 4–7 and 9.
+See `docs/12_Product_Decisions.md` BR-037 through BR-047 for every
 deviation recorded so far.
 
 **Known deviations from the docs**: Release 1 auth in this build is email +
@@ -58,7 +59,15 @@ overview endpoint — not the full documented dynamic-RBAC/AdminAuditLog/
 refresh-cookie/Competition-Arena-Notification system; there is still a
 single fixed ADMIN role, not custom roles/permissions. `/api/v1/auth/login`
 is shared by both roles (no separate `/admin/auth/login`) and now returns
-`studentProfile: null` for ADMIN-role users — see BR-046.
+`studentProfile: null` for ADMIN-role users — see BR-046. The Admin Panel
+frontend (`apps/web/src/app/admin/`) uses its own `AdminAuthProvider`
+(separate from the student `AuthProvider`) that trusts a locally-persisted
+session instead of re-validating against a server `/me` endpoint, since no
+admin-audience "whoami" endpoint exists; the shared `/login` page branches
+into the student or admin shell by `user.role` after one login call. Three
+admin-scoped taxonomy list endpoints (`GET /admin/subjects`/`chapters`/
+`topics`) were added to back the question/test form dropdowns — see
+BR-047.
 
 ## Folder structure
 

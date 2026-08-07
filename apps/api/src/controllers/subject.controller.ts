@@ -1,11 +1,23 @@
 import type { Request, Response } from "express";
-import type { AdminSubject, ApiResponse, SubjectDetailResponseData, SubjectListResponseData } from "@board-ranking/shared";
-import { createSubject as createSubjectService, getPublicSubjectById, listPublicSubjects, updateSubject as updateSubjectService } from "../services/subject.service.js";
+import type { AdminSubject, AdminSubjectListResponseData, ApiResponse, SubjectDetailResponseData, SubjectListResponseData } from "@board-ranking/shared";
+import {
+  createSubject as createSubjectService,
+  getPublicSubjectById,
+  listAdminSubjects,
+  listPublicSubjects,
+  updateSubject as updateSubjectService,
+} from "../services/subject.service.js";
 import type { SubjectCreateInput, SubjectUpdateInput } from "../validators/question-bank.validators.js";
 
 export async function listSubjects(_req: Request, res: Response): Promise<void> {
   const data = await listPublicSubjects();
   const body: ApiResponse<SubjectListResponseData> = { success: true, message: "", data };
+  res.status(200).json(body);
+}
+
+export async function listAdminSubjectsHandler(_req: Request, res: Response): Promise<void> {
+  const data = await listAdminSubjects();
+  const body: ApiResponse<AdminSubjectListResponseData> = { success: true, message: "", data };
   res.status(200).json(body);
 }
 

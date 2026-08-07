@@ -1,10 +1,11 @@
 import { Prisma } from "@prisma/client";
-import type { AdminSubject, SubjectDetailResponseData, SubjectListResponseData } from "@board-ranking/shared";
+import type { AdminSubject, AdminSubjectListResponseData, SubjectDetailResponseData, SubjectListResponseData } from "@board-ranking/shared";
 import { ConflictError, NotFoundError } from "../errors/AppError.js";
 import {
   createSubject as createSubjectRepo,
   findActiveSubjectById,
   findActiveSubjects,
+  findAllSubjects,
   findSubjectById,
   updateSubject as updateSubjectRepo,
 } from "../repositories/subject.repository.js";
@@ -13,6 +14,11 @@ import type { SubjectCreateInput, SubjectUpdateInput } from "../validators/quest
 export async function listPublicSubjects(): Promise<SubjectListResponseData> {
   const subjects = await findActiveSubjects();
   return subjects.map(toPublicSubject);
+}
+
+export async function listAdminSubjects(): Promise<AdminSubjectListResponseData> {
+  const subjects = await findAllSubjects();
+  return subjects.map(toAdminSubject);
 }
 
 export async function getPublicSubjectById(id: string): Promise<SubjectDetailResponseData> {
